@@ -3,8 +3,8 @@ import { type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio, spa
 import { output } from './output'
 
 type ProcessExecutionOutput = {
-	stdout?: string
-	stderr?: string
+	stdout: string
+	stderr: string
 }
 
 export type RunAsyncResult = Promise<ProcessExecutionOutput>
@@ -19,20 +19,20 @@ class BufferCollector {
 		this.buffer = this.buffer ? Buffer.concat([this.buffer, data]) : data
 	}
 
-	toString(): string | undefined {
-		return this.buffer?.toString()
+	toString(): string {
+		return this.buffer?.toString() ?? ''
 	}
 }
 
 /**
  * Represents an error from a process execution with exit code and output
  */
-class ProcessError extends Error {
+export class ProcessError extends Error {
 	exitCode: number
-	stdout?: string
-	stderr?: string
+	stdout: string
+	stderr: string
 
-	constructor(exitCode: number, stdout?: string, stderr?: string) {
+	constructor(exitCode: number, stdout: string, stderr: string) {
 		super(`Command failed with exit code #${exitCode}`)
 		this.name = 'ProcessError'
 		this.exitCode = exitCode
@@ -50,7 +50,7 @@ function createProcessResult(
 	exitCode: number,
 	stdout: BufferCollector,
 	stderr: BufferCollector,
-): ProcessError | { stdout?: string; stderr?: string } {
+): ProcessError | ProcessExecutionOutput {
 	const stdoutStr = stdout.toString()
 	const stderrStr = stderr.toString()
 
@@ -134,7 +134,7 @@ function createEventHandlers(
 		throw err
 	}
 
-	const onClose = (code: number): { stdout?: string; stderr?: string } => {
+	const onClose = (code: number): ProcessExecutionOutput => {
 		cleanup()
 
 		const result = createProcessResult(code, stdoutCollector, stderrCollector)
