@@ -1,174 +1,180 @@
 {
-  "name": "php-cs-fixer",
-  "displayName": "php cs fixer",
-  "description": "PHP CS Fixer extension for VS Code, php formatter, php code beautify tool, format html",
-  "version": "0.3.21",
-  "publisher": "junstyle",
-  "author": "junstyle",
-  "license": "ISC",
-  "homepage": "https://github.com/junstyle/vscode-php-cs-fixer",
-  "icon": "logo.png",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/junstyle/vscode-php-cs-fixer.git"
-  },
-  "engines": {
-    "vscode": "^1.56.0"
-  },
-  "categories": [
-    "Formatters",
-    "Linters",
-    "Other"
-  ],
-  "activationEvents": [
-    "onLanguage:php"
-  ],
-  "main": "./index",
-  "contributes": {
-    "commands": [
-      {
-        "command": "php-cs-fixer.fix",
-        "title": "php-cs-fixer: fix this file",
-        "when": "!inOutput && editorFocus && editorLangId == php"
-      },
-      {
-        "command": "php-cs-fixer.fix2",
-        "title": "php-cs-fixer: fix",
-        "when": "explorerResourceIsFolder"
-      },
-      {
-        "command": "php-cs-fixer.diff",
-        "title": "php-cs-fixer: diff",
-        "when": "resourceLangId == php"
-      },
-      {
-        "command": "php-cs-fixer.showOutput",
-        "title": "php-cs-fixer: showOutput"
-      }
-    ],
-    "configuration": {
-      "title": "PHP CS Fixer",
-      "type": "object",
-      "properties": {
-        "php-cs-fixer.executablePath": {
-          "type": "string",
-          "default": "php-cs-fixer",
-          "description": "Points to the php-cs-fixer exectuable, eg: win: php-cs-fixer.bat, other: php-cs-fixer; or points to php-cs-fixer.phar path, eg: /full/path/of/php-cs-fixer.phar"
-        },
-        "php-cs-fixer.executablePathWindows": {
-          "type": "string",
-          "description": "Points to the php-cs-fixer exectuable on Windows environments, eg: php-cs-fixer.bat. Useful if you are sharing settings among different environments."
-        },
-        "php-cs-fixer.rules": {
-          "type": [
-            "string",
-            "object"
-          ],
-          "default": "@PSR12",
-          "description": "PHP CS Fixer rules (such as @PSR1, @PSR2, @PSR12, @PER-CS, @Symfony...). Support json formatted value. @see: https://github.com/FriendsOfPHP/PHP-CS-Fixer"
-        },
-        "php-cs-fixer.config": {
-          "type": "string",
-          "default": ".php-cs-fixer.php;.php-cs-fixer.dist.php;.php_cs;.php_cs.dist",
-          "description": "config file (.php-cs-fixer.php, .php-cs-fixer.dist.php, .php_cs, .php_cs.dist or custom defined) can place in workspace root folder or .vscode folder or any other folder (full path)"
-        },
-        "php-cs-fixer.allowRisky": {
-          "type": "boolean",
-          "default": false,
-          "description": "Are risky fixers allowed?"
-        },
-        "php-cs-fixer.pathMode": {
-          "type": "string",
-          "enum": [
-            "override",
-            "intersection"
-          ],
-          "default": "override",
-          "description": "--path-mode can be override or intersection, intersection only works on explorer context menu action, not works for current focused file. detail see:https://github.com/FriendsOfPHP/PHP-CS-Fixer#usage"
-        },
-        "php-cs-fixer.ignorePHPVersion": {
-          "type": "boolean",
-          "default": false,
-          "description": "set env:PHP_CS_FIXER_IGNORE_ENV, to ignore tip `minimum and maximum php version`"
-        },
-        "php-cs-fixer.exclude": {
-          "type": "array",
-          "default": [],
-          "description": "--path-mode=intersection has a conflict with auto format on save, so you can use `exclude option` instead of. glob strings."
-        },
-        "php-cs-fixer.onsave": {
-          "type": "boolean",
-          "default": false,
-          "description": "Execute PHP CS Fixer on save"
-        },
-        "php-cs-fixer.autoFixByBracket": {
-          "type": "boolean",
-          "default": false,
-          "description": "when press down the key } auto fix the code in the brackets {}"
-        },
-        "php-cs-fixer.autoFixBySemicolon": {
-          "type": "boolean",
-          "default": false,
-          "description": "when press down the key ; auto fix the code at the current line"
-        },
-        "php-cs-fixer.formatHtml": {
-          "type": "boolean",
-          "default": false,
-          "description": "whether formatting html at the same time"
-        },
-        "php-cs-fixer.documentFormattingProvider": {
-          "type": "boolean",
-          "default": true,
-          "description": "register php document formatting provider, right mouse-click context menu, show as 'Format Document', after changing this option you should restart your editor."
-        },
-        "php-cs-fixer.tmpDir": {
-          "type": "string",
-          "default": "",
-          "description": "the dir for tmp files, make sure you have 'writable' permission on this dir."
-        },
-        "php-cs-fixer.lastDownload": {
-          "type": "integer",
-          "default": 1,
-          "description": "last automatically download php-cs-fixer time, if you want to disable auto download for latest php-cs-fixer.phar set to 0. just for automatically installed user."
-        }
-      }
-    },
-    "menus": {
-      "explorer/context": [
-        {
-          "when": "resourceLangId == php",
-          "command": "php-cs-fixer.fix2",
-          "group": "php-cs-fixer"
-        },
-        {
-          "when": "explorerResourceIsFolder",
-          "command": "php-cs-fixer.fix2",
-          "group": "php-cs-fixer"
-        },
-        {
-          "when": "resourceLangId == php",
-          "command": "php-cs-fixer.diff",
-          "group": "php-cs-fixer"
-        }
-      ]
-    }
-  },
-  "scripts": {
-    "vscode:prepublish": "npm run build",
-    "esbuild-base": "esbuild ./src/index.ts --bundle --outfile=index.js --external:vscode --format=cjs --platform=node",
-    "build": "npm run -S esbuild-base -- --minify",
-    "watch": "npm run -S esbuild-base -- --sourcemap --watch"
-  },
-  "dependencies": {
-    "anymatch": "^3.1.3",
-    "htmlparser2": "^4.1.0",
-    "js-beautify": "^1.14.8",
-    "node-downloader-helper": "^1.0.19",
-    "php-parser": "^3.1.5"
-  },
-  "devDependencies": {
-    "@types/node": "^16.11.43",
-    "@types/vscode": "1.56.0",
-    "esbuild": "^0.21.4"
-  }
+	"name": "php-cs-fixer-fork",
+	"displayName": "php cs fixer",
+	"version": "0.3.21",
+	"description": "PHP CS Fixer extension for VS Code, php formatter, php code beautify tool, format html",
+	"categories": [
+		"Formatters",
+		"Linters",
+		"Other"
+	],
+	"homepage": "https://github.com/kurre/vscode-php-cs-fixer",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/kurre/vscode-php-cs-fixer.git"
+	},
+	"license": "ISC",
+	"author": "junstyle",
+	"publisher": "junstyle",
+	"main": "./index",
+	"scripts": {
+		"build": "npm run -S esbuild-base -- --minify",
+		"esbuild-base": "esbuild ./src/index.ts --bundle --outfile=index.js --external:vscode --format=cjs --platform=node",
+		"format": "biome format --write",
+		"lint": "biome lint",
+		"lint:fix": "biome lint --write",
+		"vscode:prepublish": "npm run build",
+		"watch": "npm run -S esbuild-base -- --sourcemap --watch"
+	},
+	"contributes": {
+		"commands": [
+			{
+				"command": "php-cs-fixer.fix",
+				"title": "php-cs-fixer: fix this file",
+				"when": "!inOutput && editorFocus && editorLangId == php"
+			},
+			{
+				"command": "php-cs-fixer.fix2",
+				"title": "php-cs-fixer: fix",
+				"when": "explorerResourceIsFolder"
+			},
+			{
+				"command": "php-cs-fixer.diff",
+				"title": "php-cs-fixer: diff",
+				"when": "resourceLangId == php"
+			},
+			{
+				"command": "php-cs-fixer.showOutput",
+				"title": "php-cs-fixer: showOutput"
+			}
+		],
+		"configuration": {
+			"title": "PHP CS Fixer",
+			"type": "object",
+			"properties": {
+				"php-cs-fixer.executablePath": {
+					"type": "string",
+					"default": "php-cs-fixer",
+					"description": "Points to the php-cs-fixer exectuable, eg: win: php-cs-fixer.bat, other: php-cs-fixer; or points to php-cs-fixer.phar path, eg: /full/path/of/php-cs-fixer.phar"
+				},
+				"php-cs-fixer.executablePathWindows": {
+					"type": "string",
+					"description": "Points to the php-cs-fixer exectuable on Windows environments, eg: php-cs-fixer.bat. Useful if you are sharing settings among different environments."
+				},
+				"php-cs-fixer.rules": {
+					"type": [
+						"string",
+						"object"
+					],
+					"default": "@PSR12",
+					"description": "PHP CS Fixer rules (such as @PSR1, @PSR2, @PSR12, @PER-CS, @Symfony...). Support json formatted value. @see: https://github.com/FriendsOfPHP/PHP-CS-Fixer"
+				},
+				"php-cs-fixer.config": {
+					"type": "string",
+					"default": ".php-cs-fixer.php;.php-cs-fixer.dist.php;.php_cs;.php_cs.dist",
+					"description": "config file (.php-cs-fixer.php, .php-cs-fixer.dist.php, .php_cs, .php_cs.dist or custom defined) can place in workspace root folder or .vscode folder or any other folder (full path)"
+				},
+				"php-cs-fixer.allowRisky": {
+					"type": "boolean",
+					"default": false,
+					"description": "Are risky fixers allowed?"
+				},
+				"php-cs-fixer.pathMode": {
+					"type": "string",
+					"enum": [
+						"override",
+						"intersection"
+					],
+					"default": "override",
+					"description": "--path-mode can be override or intersection, intersection only works on explorer context menu action, not works for current focused file. detail see:https://github.com/FriendsOfPHP/PHP-CS-Fixer#usage"
+				},
+				"php-cs-fixer.ignorePHPVersion": {
+					"type": "boolean",
+					"default": false,
+					"description": "set env:PHP_CS_FIXER_IGNORE_ENV, to ignore tip `minimum and maximum php version`"
+				},
+				"php-cs-fixer.exclude": {
+					"type": "array",
+					"default": [],
+					"description": "--path-mode=intersection has a conflict with auto format on save, so you can use `exclude option` instead of. glob strings."
+				},
+				"php-cs-fixer.onsave": {
+					"type": "boolean",
+					"default": false,
+					"description": "Execute PHP CS Fixer on save"
+				},
+				"php-cs-fixer.autoFixByBracket": {
+					"type": "boolean",
+					"default": false,
+					"description": "when press down the key } auto fix the code in the brackets {}"
+				},
+				"php-cs-fixer.autoFixBySemicolon": {
+					"type": "boolean",
+					"default": false,
+					"description": "when press down the key ; auto fix the code at the current line"
+				},
+				"php-cs-fixer.formatHtml": {
+					"type": "boolean",
+					"default": false,
+					"description": "whether formatting html at the same time"
+				},
+				"php-cs-fixer.documentFormattingProvider": {
+					"type": "boolean",
+					"default": true,
+					"description": "register php document formatting provider, right mouse-click context menu, show as 'Format Document', after changing this option you should restart your editor."
+				},
+				"php-cs-fixer.tmpDir": {
+					"type": "string",
+					"default": "",
+					"description": "the dir for tmp files, make sure you have 'writable' permission on this dir."
+				},
+				"php-cs-fixer.lastDownload": {
+					"type": "integer",
+					"default": 1,
+					"description": "last automatically download php-cs-fixer time, if you want to disable auto download for latest php-cs-fixer.phar set to 0. just for automatically installed user."
+				}
+			}
+		},
+		"menus": {
+			"explorer/context": [
+				{
+					"when": "resourceLangId == php",
+					"command": "php-cs-fixer.fix2",
+					"group": "php-cs-fixer"
+				},
+				{
+					"when": "explorerResourceIsFolder",
+					"command": "php-cs-fixer.fix2",
+					"group": "php-cs-fixer"
+				},
+				{
+					"when": "resourceLangId == php",
+					"command": "php-cs-fixer.diff",
+					"group": "php-cs-fixer"
+				}
+			]
+		}
+	},
+	"activationEvents": [
+		"onLanguage:php"
+	],
+	"dependencies": {
+		"anymatch": "^3.1.3",
+		"htmlparser2": "^4.1.0",
+		"js-beautify": "^1.15.4",
+		"php-parser": "^3.2.5"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.3.8",
+		"@types/js-beautify": "^1.14.3",
+		"@types/node": "^24.10.3",
+		"@types/vscode": "1.107.0",
+		"esbuild": "^0.27.1",
+		"typescript": "^5.9.3"
+	},
+	"engines": {
+		"vscode": "^1.56.0",
+		"node": ">=24 <25"
+	},
+	"icon": "logo.png"
 }

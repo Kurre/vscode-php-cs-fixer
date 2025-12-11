@@ -1,107 +1,178 @@
-import { spawn, SpawnOptionsWithoutStdio } from 'child_process';
-import { output } from './output';
+import { type SpawnOptionsWithoutStdio, spawn } from 'node:child_process'
 
-export function runAsync(command: string, args: string[], options: SpawnOptionsWithoutStdio, onData: (data: Buffer) => void = null) {
-  const cpOptions = Object.assign({}, options, { shell: process.platform == 'win32' })
-  let cp;
-  try {
-    if (process.platform == 'win32') {
-      if (command.includes(" ") && command[0] != '"') {
-        command = '"' + command + '"'
-      }
-    }
+import { output } from './output'
 
-    output('runAsync: spawn ' + command);
-    output(JSON.stringify(args, null, 2))
-    output(JSON.stringify(cpOptions, null, 2))
-
-    cp = spawn(command, args, cpOptions)
-  } catch (err) {
-    const promise = new Promise((resolve, reject) => {
-      output('runAsync: error')
-      output(JSON.stringify(err, null, 2))
-      output('runAsync: reject promise')
-      reject(err)
-    })
-      ; (promise as any).cp = cp
-
-    return promise
-  }
-
-  const promise = new Promise((resolve, reject) => {
-    let stdout = null
-    let stderr = null
-
-    cp.stdout &&
-      cp.stdout.on('data', (data) => {
-        stdout = stdout || Buffer.from('')
-        stdout = Buffer.concat([stdout, data])
-        onData && onData(data)
-      })
-
-    cp.stderr &&
-      cp.stderr.on('data', (data) => {
-        stderr = stderr || Buffer.from('')
-        stderr = Buffer.concat([stderr, data])
-        // stdout = stdout || Buffer.from('');
-        // stdout = Buffer.concat([stdout, data]);
-        onData && onData(data)
-      })
-
-    const cleanupListeners = () => {
-      cp.removeListener('error', onError)
-      cp.removeListener('close', onClose)
-    }
-
-    const onError = (err) => {
-      cleanupListeners()
-
-      output('runAsync: error')
-      output(JSON.stringify(err, null, 2))
-      output('runAsync: reject promise')
-      reject(err)
-    }
-
-    const onClose = (code) => {
-      cleanupListeners()
-
-      const resolved = resolveRun(code, stdout, stderr)
-
-      if (resolved instanceof Error) {
-        output('runAsync: error')
-        output(JSON.stringify(resolved, null, 2))
-        output('runAsync: reject promise')
-        reject(resolved)
-      } else {
-        output('runAsync: success')
-        output(JSON.stringify(resolved, null, 2))
-        output('runAsync: resolve promise')
-        resolve(resolved)
-      }
-    }
-
-    cp.on('error', onError).on('close', onClose)
-  })
-
-    ; (promise as any).cp = cp
-
-  return promise
+type RunAsyncResult = Promise<{ stdout?: string; stderr?: string }> & {
+	cp?: ReturnType<typeof spawn> | undefined
 }
 
-function resolveRun(exitCode, stdout, stderr) {
-  stdout = stdout && stdout.toString()
-  stderr = stderr && stderr.toString()
+/**
+ * Collects and concatenates buffer data from a stream
+ */
+class BufferCollector {
+	private buffer: Buffer | null = null
 
-  if (exitCode !== 0) {
-    return Object.assign(new Error(`Command failed, exited with code #${exitCode}`), {
-      exitCode,
-      stdout,
-      stderr,
-    })
-  }
+	append(data: Buffer): void {
+		this.buffer = this.buffer ? Buffer.concat([this.buffer, data]) : data
+	}
 
-  return {
-    stdout,
-    stderr,
-  }
+	toString(): string | undefined {
+		return this.buffer?.toString()
+	}
+}
+
+/**
+ * Manages the result of a process execution
+ */
+function createProcessResult(
+	exitCode: number,
+	stdout: BufferCollector,
+	stderr: BufferCollector,
+): Error | { stdout?: string; stderr?: string } {
+	const stdoutStr = stdout.toString()
+	const stderrStr = stderr.toString()
+
+	if (exitCode === 0) {
+		return {
+			stdout: stdoutStr,
+			stderr: stderrStr,
+		}
+	}
+
+	const error = new Error(`Command failed with exit code #${exitCode}`) as Error & {
+		exitCode: number
+		stdout?: string
+		stderr?: string
+	}
+	error.exitCode = exitCode
+	error.stdout = stdoutStr
+	error.stderr = stderrStr
+	return error
+}
+
+/**
+ * Prepares the spawn command for the current platform
+ */
+function normalizeCommand(command: string): string {
+	if (process.platform === 'win32' && command.includes(' ') && !command.startsWith('"')) {
+		return `"${command}"`
+	}
+	return command
+}
+
+/**
+ * Logs the spawn operation details for debugging
+ */
+function logSpawnDetails(command: string, args: string[], options: SpawnOptionsWithoutStdio): void {
+	output(`runAsync: spawn ${command}`)
+	output(JSON.stringify(args, null, 2))
+	output(JSON.stringify(options, null, 2))
+}
+
+/**
+ * Sets up event listeners for the spawned child process
+ */
+function setupProcessListeners(
+	cp: ReturnType<typeof spawn>,
+	stdoutCollector: BufferCollector,
+	stderrCollector: BufferCollector,
+	onData: (data: Buffer) => void,
+	onError: (err: unknown) => void,
+	onClose: (code: number) => void,
+): void {
+	cp.stdout?.on('data', (data) => {
+		stdoutCollector.append(data)
+		onData(data)
+	})
+
+	cp.stderr?.on('data', (data) => {
+		stderrCollector.append(data)
+		onData(data)
+	})
+
+	cp.on('error', onError)
+	cp.on('close', onClose)
+}
+
+/**
+ * Creates event handlers that clean up listeners
+ */
+function createEventHandlers(
+	cp: ReturnType<typeof spawn>,
+	stdoutCollector: BufferCollector,
+	stderrCollector: BufferCollector,
+	resolve: (value: { stdout?: string; stderr?: string }) => void,
+	reject: (reason?: unknown) => void,
+): { onError: (err: unknown) => void; onClose: (code: number) => void } {
+	const cleanup = (): void => {
+		cp.removeListener('error', onError)
+		cp.removeListener('close', onClose)
+	}
+
+	const onError = (err: unknown): void => {
+		cleanup()
+		output('runAsync: error')
+		output(JSON.stringify(err, null, 2))
+		output('runAsync: reject promise')
+		reject(err)
+	}
+
+	const onClose = (code: number): void => {
+		cleanup()
+
+		const result = createProcessResult(code, stdoutCollector, stderrCollector)
+
+		if (result instanceof Error) {
+			output('runAsync: error')
+			output(JSON.stringify(result, null, 2))
+			output('runAsync: reject promise')
+			reject(result)
+			return
+		}
+
+		output('runAsync: success')
+		output(JSON.stringify(result, null, 2))
+		output('runAsync: resolve promise')
+		resolve(result)
+	}
+
+	return { onError, onClose }
+}
+
+export function runAsync(
+	command: string,
+	args: string[],
+	options: SpawnOptionsWithoutStdio,
+	onData: (data: Buffer) => void = () => {},
+): RunAsyncResult {
+	const normalizedCommand = normalizeCommand(command)
+	const cpOptions = { ...options, shell: process.platform === 'win32' }
+
+	logSpawnDetails(normalizedCommand, args, cpOptions)
+
+	let cp: ReturnType<typeof spawn> | undefined
+
+	try {
+		cp = spawn(normalizedCommand, args, cpOptions)
+	} catch (err) {
+		output('runAsync: error')
+		output(JSON.stringify(err, null, 2))
+		output('runAsync: reject promise')
+		const promise = Promise.reject(err) as RunAsyncResult
+		promise.cp = undefined
+		return promise
+	}
+
+	const { promise, resolve, reject } = Promise.withResolvers<{ stdout?: string; stderr?: string }>()
+
+	const stdoutCollector = new BufferCollector()
+	const stderrCollector = new BufferCollector()
+
+	const { onError, onClose } = createEventHandlers(cp, stdoutCollector, stderrCollector, resolve, reject)
+
+	setupProcessListeners(cp, stdoutCollector, stderrCollector, onData, onError, onClose)
+
+	const result = promise as RunAsyncResult
+	result.cp = cp
+	return result
 }

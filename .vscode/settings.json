@@ -1,0 +1,16 @@
+{
+	"workbench.colorCustomizations": {
+		"[Default Dark Modern]": {
+			"tab.activeBorderTop": "#00FF00",
+			"tab.unfocusedActiveBorderTop": "#00FF0088",
+			"textCodeBlock.background": "#00000055"
+		},
+		"editor.selectionHighlightBorder": "#A9A9A9",
+		"editor.wordHighlightBorder": "#FFD700",
+		"editor.wordHighlightStrongBorder": "#FF6347",
+		"activityBar.background": "#4E164A",
+		"titleBar.activeBackground": "#6E1E67",
+		"titleBar.activeForeground": "#FDF8FD"
+	},
+	"typescript.tsdk": "node_modules/typescript/lib"
+}

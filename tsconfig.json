@@ -1,12 +1,26 @@
 {
-  "compilerOptions": {
-    "module": "commonjs",
-    "target": "es2020",
-    "lib": ["es2020"],
-    "outDir": "out",
-    "rootDir": "src",
-    "sourceMap": true
-  },
-  "include": ["src"],
-  "exclude": ["node_modules", ".vscode-test"]
+	"compilerOptions": {
+		"allowImportingTsExtensions": true,
+		"allowJs": false,
+		"esModuleInterop": true,
+		"isolatedModules": true,
+		"lib": ["es2024"],
+		"module": "es2022",
+		"moduleDetection": "force",
+		"moduleResolution": "bundler",
+		"noEmit": true,
+		"noImplicitOverride": true,
+		"noUncheckedIndexedAccess": true,
+		"noUncheckedSideEffectImports": true,
+		"outDir": "dist",
+		"resolveJsonModule": true,
+		"rootDir": "src",
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"strict": true,
+		"target": "es2024",
+		"verbatimModuleSyntax": true
+	},
+	"exclude": [".vscode-test", "node_modules"],
+	"include": ["src"]
 }
