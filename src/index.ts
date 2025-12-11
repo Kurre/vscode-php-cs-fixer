@@ -1,8 +1,7 @@
 import type { SpawnOptionsWithoutStdio } from 'node:child_process'
-import * as fs from 'node:fs'
-import * as os from 'node:os'
-import * as path from 'node:path'
-
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import anymatch from 'anymatch'
 import {
 	commands,
@@ -21,11 +20,12 @@ import {
 } from 'vscode'
 
 import { beautify } from './beautifyHtml'
+import { downloadPhpCsFixerFile } from './download-phar'
 import { clearOutput, disposeOutput, hideStatusBar, output, showOutput, statusInfo } from './output'
-import { runAsync } from './runAsync'
+import { ProcessError, runAsync } from './runAsync'
 
-const TmpDir = os.tmpdir()
-const HomeDir = os.homedir()
+const TEMP_DIR = os.tmpdir()
+const HOME_DIR = os.homedir()
 let isRunning = false
 
 interface PHPCSFixerConfig {
@@ -66,7 +66,6 @@ class PHPCSFixer implements PHPCSFixerConfig {
 	tmpDir = ''
 
 	constructor() {
-		// super()
 		this.loadSettings()
 		this.checkUpdate()
 	}
@@ -154,7 +153,7 @@ class PHPCSFixer implements PHPCSFixerConfig {
 			// As of time of writing only workspace folders on disk are supported
 			// since the php-cs-fixer binary expects to work off local files. UNC
 			// filepaths may be supported but this is untested.
-			if (workspaceFolder != null && workspaceFolder.uri.scheme === 'file') {
+			if (workspaceFolder?.uri.scheme === 'file') {
 				normalizedInput = input.replace(pattern, workspaceFolder.uri.fsPath)
 			}
 		}
@@ -175,7 +174,7 @@ class PHPCSFixer implements PHPCSFixerConfig {
 		const normalizedFilePath = filePath || uri.fsPath
 
 		const args = ['fix', '--using-cache=no', '--format=json']
-		if (this.pharPath != null) {
+		if (this.pharPath !== null) {
 			args.unshift(this.resolveVscodeExpressions(this.pharPath, { uri }))
 		}
 		let useConfig = false
@@ -187,8 +186,7 @@ class PHPCSFixer implements PHPCSFixerConfig {
 				.map((file) => file.replace(/^~\//, `${os.homedir()}/`)) // replace ~/ with home dir
 
 			// include also {workspace.rootUri}/.vscode/ & {workspace.rootUri}/
-			const searchUris =
-				rootUri != null && rootUri.scheme === 'file' ? [Uri.joinPath(rootUri, '.vscode'), rootUri] : []
+			const searchUris = rootUri?.scheme === 'file' ? [Uri.joinPath(rootUri, '.vscode'), rootUri] : []
 
 			const files = []
 			for (const file of configFiles) {
@@ -214,18 +212,19 @@ class PHPCSFixer implements PHPCSFixerConfig {
 				}
 			}
 		}
-		if (!useConfig && this.rules) {
+		if (!useConfig && this.rules && typeof this.rules === 'string') {
 			if (process.platform === 'win32') {
-				args.push(`--rules="${(this.rules as string).replace(/"/g, '\\"')}"`)
+				args.push(`--rules="${(this.rules).replace(/"/g, '\\"')}"`)
 			} else {
 				args.push(`--rules=${this.rules}`)
 			}
 		}
+
 		if (this.allowRisky) {
 			args.push('--allow-risky=yes')
 		}
 
-		if (normalizedFilePath.startsWith(TmpDir)) {
+		if (normalizedFilePath.startsWith(TEMP_DIR)) {
 			args.push('--path-mode=override')
 		} else {
 			args.push(`--path-mode=${this.pathMode}`)
@@ -240,13 +239,13 @@ class PHPCSFixer implements PHPCSFixerConfig {
 		clearOutput()
 		isPartial || statusInfo('formatting')
 
-		let filePath: string
+		let filePath = ''
 		// if interval between two operations too short, see: https://github.com/junstyle/vscode-php-cs-fixer/issues/76
 		// so set different filePath for partial codes;
 		if (isPartial) {
-			filePath = `${TmpDir}/php-cs-fixer-partial.php`
+			filePath = `${TEMP_DIR}/php-cs-fixer-partial.php`
 		} else {
-			const tmpDirs = [this.tmpDir, TmpDir, HomeDir].filter(Boolean)
+			const tmpDirs = [this.tmpDir, TEMP_DIR, HOME_DIR].filter(Boolean)
 			for (const tmpDir of tmpDirs) {
 				filePath = path.join(tmpDir, `pcf-tmp${Math.random()}`, uri.fsPath.replace(/^.*[\\/]/, ''))
 				try {
@@ -272,12 +271,19 @@ class PHPCSFixer implements PHPCSFixerConfig {
 			opts.cwd = path.dirname(uri.fsPath)
 		}
 		if (this.ignorePHPVersion) {
-			opts.env = Object.create(process.env)
+			opts.env = { ...process.env }
 			opts.env.PHP_CS_FIXER_IGNORE_ENV = '1'
 		}
 
 		return new Promise((resolve, reject) => {
-			runAsync(this.getRealExecutablePath(uri), args, opts)
+			const realExecutablePath = this.getRealExecutablePath(uri)
+			if (!realExecutablePath) {
+				this.errorTip()
+				isRunning = false
+				return reject(new Error('executablePath not found'))
+			}
+
+			runAsync(realExecutablePath, args, opts)
 				.then(({ stdout, stderr }) => {
 					output(stdout)
 
@@ -288,10 +294,10 @@ class PHPCSFixer implements PHPCSFixerConfig {
 						if (result && result.files.length > 0) {
 							resolve(fs.readFileSync(filePath, 'utf-8'))
 						} else {
-							const lines = stderr.split(/\r?\n/).filter(Boolean)
+							const lines = stderr ? stderr.split(/\r?\n/).filter(Boolean) : []
 							if (lines.length > 1) {
 								output(stderr)
-								isPartial || statusInfo(lines[1])
+								if (!isPartial) statusInfo(lines[1])
 								return reject(new Error(stderr))
 							}
 							resolve(text.toString())
@@ -302,21 +308,25 @@ class PHPCSFixer implements PHPCSFixerConfig {
 				.catch((err) => {
 					reject(err)
 					output(err.stderr || JSON.stringify(err, null, 2))
-					isPartial || statusInfo('failed')
+					if (!isPartial) statusInfo('failed')
 
-					if (err.code === 'ENOENT') {
-						this.errorTip()
-					} else if (err.exitCode) {
-						const msgs = {
-							1: err.stdout || 'General error (or PHP minimal requirement not matched).',
+					if (err instanceof ProcessError && err.exitCode) {
+						const ERROR_MESSAGES = {
+							1: err.stdout ?? 'General error (or PHP minimal requirement not matched).',
 							16: 'Configuration error of the application.', //  The path "/file/path.php" is not readable
 							32: 'Configuration error of a Fixer.',
 							64: 'Exception raised within the application.',
 							255:
-								err.stderr?.match(/PHP (?:Fatal|Parse) error:\s*Uncaught Error:[^\r?\n]+/)?.[0] ||
+								err.stderr.match(/PHP (?:Fatal|Parse) error:\s*Uncaught Error:[^\r?\n]+/)?.[0] ??
 								'PHP Fatal error, click to show output.',
+						} as const
+
+						if (!isPartial) {
+							const msg = ERROR_MESSAGES[err.exitCode as keyof typeof ERROR_MESSAGES]
+							statusInfo(msg)
 						}
-						isPartial || statusInfo(msgs[err.exitCode])
+					} else if ('code' in err && err.code === 'ENOENT') {
+						this.errorTip()
 					}
 				})
 				.finally(() => {
@@ -337,18 +347,24 @@ class PHPCSFixer implements PHPCSFixerConfig {
 
 		const args = this.getArgs(uri)
 		const opts: SpawnOptionsWithoutStdio = {}
-		if (uri.fsPath != '') {
+		if (uri.fsPath !== '') {
 			opts.cwd = path.dirname(uri.fsPath)
 		}
 		if (this.ignorePHPVersion) {
-			opts.env = Object.create(process.env)
+			opts.env = { ...process.env }
 			opts.env.PHP_CS_FIXER_IGNORE_ENV = '1'
 		}
 
-		runAsync(this.getRealExecutablePath(uri), args, opts, (data) => {
+		const realExecutablePath = this.getRealExecutablePath(uri)
+		if (!realExecutablePath) {
+			this.errorTip()
+			isRunning = false
+			return
+		}
+		runAsync(realExecutablePath, args, opts, (data) => {
 			output(data.toString())
 		})
-			.then(({ stdout }) => {
+			.then(({ stdout: _stdout }) => {
 				hideStatusBar()
 			})
 			.catch((err) => {
@@ -374,15 +390,18 @@ class PHPCSFixer implements PHPCSFixerConfig {
 
 	doAutoFixByBracket(event: TextDocumentChangeEvent) {
 		if (event.contentChanges.length === 0) return
-		const pressedKey = event.contentChanges[0].text
-		// console.log(pressedKey);
-		if (!/^\s*\}$/.test(pressedKey)) {
+
+		const pressedKey = event.contentChanges[0]?.text
+		if (pressedKey && !/^\s*\}$/.test(pressedKey)) {
 			return
 		}
 
 		const editor = window.activeTextEditor
+		if (!editor) return
+
 		const document = editor.document
 		const originalStart = editor.selection.start
+
 		commands.executeCommand('editor.action.jumpToBracket').then(() => {
 			let start = editor.selection.start
 			const offsetStart0 = document.offsetAt(originalStart)
@@ -392,7 +411,7 @@ class PHPCSFixer implements PHPCSFixerConfig {
 			}
 
 			const nextChar = document.getText(new Range(start, start.translate(0, 1)))
-			if (offsetStart0 - offsetStart1 < 3 || nextChar != '{') {
+			if (offsetStart0 - offsetStart1 < 3 || nextChar !== '{') {
 				// jumpToBracket to wrong match bracket, do nothing
 				commands.executeCommand('cursorUndo')
 				return
@@ -400,7 +419,7 @@ class PHPCSFixer implements PHPCSFixerConfig {
 
 			let line = document.lineAt(start)
 			let code = '<?php\n$__pcf__spliter=0;\n'
-			let dealFun = (fixed) =>
+			let dealFun = (fixed: string) =>
 				fixed.replace(/^<\?php[\s\S]+?\$__pcf__spliter\s*=\s*0;\r?\n/, '').replace(/\s*$/, '')
 			let searchIndex = -1
 			if (/^\s*\{\s*$/.test(line.text)) {
@@ -422,12 +441,12 @@ class PHPCSFixer implements PHPCSFixerConfig {
 				start = line.range.start
 			} else {
 				// indent + if(1)
-				code += `${line.text.match(/^(\s*)\S+/)[1]}if(1)`
-				dealFun = (fixed) => {
+				code += `${line.text.match(/^(\s*)\S+/)?.[1]}if(1)`
+				dealFun = (fixed: string) => {
 					const match = fixed.match(
 						/^<\?php[\s\S]+?\$__pcf__spliter\s*=\s*0;\s+?if\s*\(\s*1\s*\)\s*(\{[\s\S]+?\})\s*$/i,
-					)
-					return match != null ? match[1] : ''
+					)?.[1]
+					return match ?? ''
 				}
 			}
 
@@ -438,8 +457,8 @@ class PHPCSFixer implements PHPCSFixerConfig {
 
 				this.format(originalText, document.uri, false, true)
 					.then((text) => {
-						text = dealFun(text)
-						if (text != dealFun(originalText)) {
+						const fixedText = dealFun(text)
+						if (fixedText !== dealFun(originalText)) {
 							editor
 								.edit((builder) => {
 									builder.replace(range, text)
@@ -460,35 +479,40 @@ class PHPCSFixer implements PHPCSFixerConfig {
 
 	doAutoFixBySemicolon(event: TextDocumentChangeEvent) {
 		if (event.contentChanges.length === 0) return
-		const pressedKey = event.contentChanges[0].text
-		// console.log(pressedKey);
-		if (pressedKey != ';') {
+
+		const pressedKey = event.contentChanges[0]?.text
+		if (pressedKey !== ';') {
 			return
 		}
+
 		const editor = window.activeTextEditor
+		if (!editor) return
+
 		const line = editor.document.lineAt(editor.selection.start)
 		if (line.text.length < 5) {
 			return
 		}
+
 		// only at last char
-		if (line.range.end.character != editor.selection.end.character + 1) {
+		if (line.range.end.character !== editor.selection.end.character + 1) {
 			return
 		}
 
-		const indent = line.text.match(/^(\s*)/)[1]
-		const dealFun = (fixed) =>
-			fixed.replace(/^<\?php[\s\S]+?\$__pcf__spliter\s*=\s*0;\r?\n/, '').replace(/\s+$/, '')
+		const indent = line.text.match(/^(\s*)/)?.[1]
+		const dealFun = (fixed: string) => {
+			return fixed.replace(/^<\?php[\s\S]+?\$__pcf__spliter\s*=\s*0;\r?\n/, '').replace(/\s+$/, '')
+		}
+
 		const range = line.range
 		const originalText = `<?php\n$__pcf__spliter=0;\n${line.text}`
 
 		this.format(originalText, editor.document.uri, false, true)
 			.then((text) => {
-				text = dealFun(text)
-				if (text != dealFun(originalText)) {
-					text = indent + text
+				const fixedText = dealFun(text)
+				if (fixedText !== dealFun(originalText)) {
 					editor
 						.edit((builder) => {
-							builder.replace(range, text)
+							builder.replace(range, indent + fixedText)
 						})
 						.then(() => {
 							if (editor.selections.length > 0) {
@@ -502,14 +526,17 @@ class PHPCSFixer implements PHPCSFixerConfig {
 			})
 	}
 
-	formattingProvider(document: TextDocument, options: FormattingOptions): Promise<TextEdit[]> {
+	formattingProvider(
+		document: TextDocument,
+		options: FormattingOptions = { insertSpaces: true, tabSize: 4 },
+	): Promise<TextEdit[]> {
 		if (this.isExcluded(document)) {
-			return
+			return Promise.resolve([])
 		}
 
 		// only activeTextEditor, or last activeTextEditor
 		// if (window.activeTextEditor === undefined
-		//     || (window.activeTextEditor.document.uri.toString() != document.uri.toString() && lastActiveEditor != document.uri.toString()))
+		//     || (window.activeTextEditor.document.uri.toString() !== document.uri.toString() && lastActiveEditor !== document.uri.toString()))
 		//     return
 
 		isRunning = false
@@ -517,12 +544,18 @@ class PHPCSFixer implements PHPCSFixerConfig {
 			const originalText = document.getText()
 			const lastLine = document.lineAt(document.lineCount - 1)
 			const range = new Range(new Position(0, 0), lastLine.range.end)
-			const htmlOptions = Object.assign(options, workspace.getConfiguration('html').get('format'))
+
+			const htmlFormatConfig = workspace.getConfiguration('html').get('format')
+			if (typeof htmlFormatConfig !== 'object' || htmlFormatConfig === null) {
+				return Promise.reject()
+			}
+			const htmlOptions = { ...options, ...htmlFormatConfig }
+
 			const originalText2 = this.formatHtml ? beautify(originalText, htmlOptions) : originalText
 
 			this.format(originalText2, document.uri)
 				.then((text) => {
-					if (text && text != originalText) {
+					if (text && text !== originalText) {
 						resolve([new TextEdit(range, text)])
 					} else {
 						resolve([])
@@ -537,12 +570,12 @@ class PHPCSFixer implements PHPCSFixerConfig {
 
 	rangeFormattingProvider(document: TextDocument, range: Range): Promise<TextEdit[]> {
 		if (this.isExcluded(document)) {
-			return
+			return Promise.resolve([])
 		}
 
 		// only activeTextEditor, or last activeTextEditor
 		// if (window.activeTextEditor === undefined
-		//     || (window.activeTextEditor.document.uri.toString() != document.uri.toString() && lastActiveEditor != document.uri.toString()))
+		//     || (window.activeTextEditor.document.uri.toString() !== document.uri.toString() && lastActiveEditor !== document.uri.toString()))
 		//     return
 
 		isRunning = false
@@ -560,11 +593,12 @@ class PHPCSFixer implements PHPCSFixerConfig {
 
 			this.format(originalText, document.uri)
 				.then((text) => {
+					let fixedText = text
 					if (addPHPTag) {
-						text = text.replace(/^<\?php\r?\n/, '')
+						fixedText = fixedText.replace(/^<\?php\r?\n/, '')
 					}
-					if (text && text != originalText) {
-						resolve([new TextEdit(range, text)])
+					if (fixedText && fixedText !== originalText) {
+						resolve([new TextEdit(range, fixedText)])
 					} else {
 						resolve([])
 					}
@@ -586,6 +620,7 @@ class PHPCSFixer implements PHPCSFixerConfig {
 	errorTip() {
 		window
 			.showErrorMessage(
+				// biome-ignore lint/suspicious/noTemplateCurlyInString: VSC expression
 				'PHP CS Fixer: executablePath not found. Try setting `"php-cs-fixer.executablePath": "${extensionPath}/php-cs-fixer.phar"` and try again.',
 				'Open Output',
 			)
@@ -601,29 +636,30 @@ class PHPCSFixer implements PHPCSFixerConfig {
 	checkUpdate() {
 		setTimeout(() => {
 			const config = workspace.getConfiguration('php-cs-fixer')
-			const executablePath = config.get('executablePath', 'php-cs-fixer')
-			const lastDownload = config.get('lastDownload', 1)
-			if (
-				!(
-					lastDownload !== 0 &&
-					executablePath === '${extensionPath}/php-cs-fixer.phar' &&
-					lastDownload + 1000 * 3600 * 24 * 7 < new Date().getTime()
-				)
-			) {
+			const executablePath = config.get<string>('executablePath', 'php-cs-fixer')
+			const lastDownloadTimestamp = config.get<number>('lastDownload', 1)
+			const oneWeekInMilliseconds = 1000 * 3600 * 24 * 7 // one week;
+			const nextDownloadTimestamp = lastDownloadTimestamp + oneWeekInMilliseconds // one week // one week // one week
+
+			const shouldDownload =
+				lastDownloadTimestamp !== 0 &&
+				// biome-ignore lint/suspicious/noTemplateCurlyInString: VSC expression
+				executablePath === '${extensionPath}/php-cs-fixer.phar' &&
+				nextDownloadTimestamp < Date.now()
+
+			if (!shouldDownload) {
 				return
 			}
+
 			console.log('php-cs-fixer: check for updating...')
-			const { DownloaderHelper } = require('node-downloader-helper')
-			const dl = new DownloaderHelper('https://cs.symfony.com/download/php-cs-fixer-v3.phar', __dirname, {
-				fileName: 'php-cs-fixer.phar.tmp',
-				override: true,
-			})
-			dl.on('end', () => {
-				fs.unlinkSync(path.join(__dirname, 'php-cs-fixer.phar'))
-				fs.renameSync(path.join(__dirname, 'php-cs-fixer.phar.tmp'), path.join(__dirname, 'php-cs-fixer.phar'))
-				config.update('lastDownload', new Date().getTime(), true)
-			})
-			dl.start()
+			const outputPath = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'php-cs-fixer.phar')
+			downloadPhpCsFixerFile(outputPath)
+				.then(() => {
+					config.update('lastDownload', Date.now(), true)
+				})
+				.catch((err) => {
+					console.error(err)
+				})
 		}, 1000 * 60)
 	}
 }
@@ -632,7 +668,7 @@ exports.activate = (context: ExtensionContext) => {
 	const pcf = new PHPCSFixer()
 
 	// context.subscriptions.push(window.onDidChangeActiveTextEditor(te => {
-	//     if (pcf.fileAutoSave != 'off') {
+	//     if (pcf.fileAutoSave !== 'off') {
 	//         setTimeout(() => lastActiveEditor = te === undefined ? undefined : te.document.uri.toString(), pcf.fileAutoSaveDelay + 100)
 	//     }
 	// }))
@@ -640,26 +676,27 @@ exports.activate = (context: ExtensionContext) => {
 	context.subscriptions.push(
 		workspace.onWillSaveTextDocument((event) => {
 			if (event.document.languageId === 'php' && pcf.onsave && pcf.editorFormatOnSave === false) {
-				event.waitUntil(pcf.formattingProvider(event.document, {} as any))
+				const formattedDocument = pcf.formattingProvider(event.document)
+				event.waitUntil(formattedDocument)
 			}
 		}),
-	)
 
-	context.subscriptions.push(
 		commands.registerTextEditorCommand('php-cs-fixer.fix', (textEditor) => {
 			if (textEditor.document.languageId === 'php') {
-				pcf.formattingProvider(textEditor.document, {} as any).then((tes) => {
+				pcf.formattingProvider(textEditor.document).then((tes) => {
 					if (tes && tes.length > 0) {
 						textEditor.edit((eb) => {
-							eb.replace(tes[0].range, tes[0].newText)
+							const textRange = tes[0]?.range
+							const updatedText = tes[0]?.newText
+							if (textRange && updatedText) {
+								eb.replace(textRange, updatedText)
+							}
 						})
 					}
 				})
 			}
 		}),
-	)
 
-	context.subscriptions.push(
 		workspace.onDidChangeTextDocument((event) => {
 			if (!(event.document.languageId === 'php' && isRunning === false)) {
 				return
@@ -675,9 +712,7 @@ exports.activate = (context: ExtensionContext) => {
 				pcf.doAutoFixBySemicolon(event)
 			}
 		}),
-	)
 
-	context.subscriptions.push(
 		workspace.onDidChangeConfiguration(() => {
 			pcf.loadSettings()
 		}),
@@ -686,15 +721,13 @@ exports.activate = (context: ExtensionContext) => {
 	if (pcf.documentFormattingProvider) {
 		context.subscriptions.push(
 			languages.registerDocumentFormattingEditProvider('php', {
-				provideDocumentFormattingEdits: (document, options, token) => {
+				provideDocumentFormattingEdits: (document, options, _token) => {
 					return pcf.formattingProvider(document, options)
 				},
 			}),
-		)
 
-		context.subscriptions.push(
 			languages.registerDocumentRangeFormattingEditProvider('php', {
-				provideDocumentRangeFormattingEdits: (document, range, options, token) => {
+				provideDocumentRangeFormattingEdits: (document, range, _options, _token) => {
 					return pcf.rangeFormattingProvider(document, range)
 				},
 			}),
@@ -702,41 +735,44 @@ exports.activate = (context: ExtensionContext) => {
 	}
 
 	context.subscriptions.push(
-		commands.registerCommand('php-cs-fixer.fix2', (f) => {
-			if (f === undefined) {
+		commands.registerCommand('php-cs-fixer.fix2', (file: Uri | undefined) => {
+			let maybeFile = file
+			if (!maybeFile) {
 				const editor = window.activeTextEditor
-				if (editor != undefined && editor.document.languageId === 'php') {
-					f = editor.document.uri
+				if (editor !== undefined && editor.document.languageId === 'php') {
+					maybeFile = editor.document.uri
 				}
 			}
-			if (!(f && f.scheme === 'file')) {
-				return
-			}
-			const stat = fs.statSync(f.fsPath)
+
+			if (!maybeFile) return
+			if (maybeFile.scheme !== 'file') return
+
+			const stat = fs.statSync(maybeFile.fsPath)
 			if (stat.isDirectory()) {
 				showOutput()
 			}
-			if (f != undefined) {
-				pcf.fix(f)
-			}
+			pcf.fix(maybeFile)
 		}),
-	)
 
-	context.subscriptions.push(
-		commands.registerCommand('php-cs-fixer.diff', (f) => {
-			if (f === undefined) {
+		commands.registerCommand('php-cs-fixer.diff', (file: Uri | undefined) => {
+			let maybeFile = file
+			if (!maybeFile) {
 				const editor = window.activeTextEditor
-				if (editor != undefined && editor.document.languageId === 'php') {
-					f = editor.document.uri
+				if (editor !== undefined && editor.document.languageId === 'php') {
+					maybeFile = editor.document.uri
 				}
 			}
-			if (f && f.scheme === 'file' && f != undefined) {
-				pcf.diff(f)
-			}
+
+			if (!maybeFile) return
+			if (maybeFile.scheme !== 'file') return
+
+			pcf.diff(maybeFile)
+		}),
+
+		commands.registerCommand('php-cs-fixer.showOutput', () => {
+			showOutput()
 		}),
 	)
-
-	context.subscriptions.push(commands.registerCommand('php-cs-fixer.showOutput', showOutput))
 }
 
 exports.deactivate = () => {
