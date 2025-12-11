@@ -1,11 +1,8 @@
-import fs from 'node:fs'
-import path from 'node:path'
+import fs from 'node:fs/promises'
 
 const url = 'https://cs.symfony.com/download/php-cs-fixer-v3.phar'
-const fileName = 'php-cs-fixer.phar'
-const outputPath = path.join(path.dirname(new URL(import.meta.url).pathname), '..', fileName)
 
-async function downloadFile(): Promise<void> {
+export async function downloadPhpCsFixerFile(outputPath: string): Promise<void> {
 	try {
 		console.log('start to download php-cs-fixer.phar')
 
@@ -16,16 +13,11 @@ async function downloadFile(): Promise<void> {
 		}
 
 		const buffer = await response.arrayBuffer()
-		fs.writeFileSync(outputPath, new Uint8Array(buffer))
+		await fs.writeFile(outputPath, new Uint8Array(buffer))
 
 		console.log('download php-cs-fixer.phar successfully.')
 	} catch (err) {
-		fs.unlink(outputPath, () => {}) // Delete the file on error
+		await fs.unlink(outputPath) // Delete the file on error
 		throw err
 	}
 }
-
-downloadFile().catch((err) => {
-	console.error('Failed to download php-cs-fixer.phar:', err)
-	process.exit(1)
-})
