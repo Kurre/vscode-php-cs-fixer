@@ -24,6 +24,8 @@
 		"lint": "biome lint",
 		"lint:fix": "biome lint --write",
 		"vscode:prepublish": "npm run build",
+		"test": "vitest run",
+		"test:watch": "vitest --watch",
 		"watch": "npm run -S esbuild-base -- --sourcemap --watch"
 	},
 	"contributes": {
@@ -170,7 +172,8 @@
 		"@types/node": "^24.10.3",
 		"@types/vscode": "1.107.0",
 		"esbuild": "^0.27.1",
-		"typescript": "^5.9.3"
+		"typescript": "^5.9.3",
+		"vitest": "^4.0.15"
 	},
 	"engines": {
 		"vscode": "^1.56.0",
