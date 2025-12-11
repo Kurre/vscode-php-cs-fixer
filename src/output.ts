@@ -22,7 +22,7 @@ export function clearOutput() {
 	getOutput().clear()
 }
 
-export function statusInfo(str: string) {
+export function statusInfo(str = 'unknown') {
 	if (statusBarItem == null) {
 		statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, -10_000_000)
 		statusBarItem.command = 'php-cs-fixer.showOutput'
