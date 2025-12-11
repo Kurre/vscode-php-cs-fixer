@@ -1,10 +1,13 @@
-import { type SpawnOptionsWithoutStdio, spawn } from 'node:child_process'
+import { type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio, spawn } from 'node:child_process'
 
 import { output } from './output'
 
-type RunAsyncResult = Promise<{ stdout?: string; stderr?: string }> & {
-	cp?: ReturnType<typeof spawn> | undefined
+type ProcessExecutionOutput = {
+	stdout?: string
+	stderr?: string
 }
+
+export type RunAsyncResult = Promise<ProcessExecutionOutput>
 
 /**
  * Collects and concatenates buffer data from a stream
@@ -22,13 +25,32 @@ class BufferCollector {
 }
 
 /**
+ * Represents an error from a process execution with exit code and output
+ */
+class ProcessError extends Error {
+	exitCode: number
+	stdout?: string
+	stderr?: string
+
+	constructor(exitCode: number, stdout?: string, stderr?: string) {
+		super(`Command failed with exit code #${exitCode}`)
+		this.name = 'ProcessError'
+		this.exitCode = exitCode
+		this.stdout = stdout
+		this.stderr = stderr
+		// Maintain proper prototype chain for instanceof checks
+		Object.setPrototypeOf(this, ProcessError.prototype)
+	}
+}
+
+/**
  * Manages the result of a process execution
  */
 function createProcessResult(
 	exitCode: number,
 	stdout: BufferCollector,
 	stderr: BufferCollector,
-): Error | { stdout?: string; stderr?: string } {
+): ProcessError | { stdout?: string; stderr?: string } {
 	const stdoutStr = stdout.toString()
 	const stderrStr = stderr.toString()
 
@@ -39,15 +61,7 @@ function createProcessResult(
 		}
 	}
 
-	const error = new Error(`Command failed with exit code #${exitCode}`) as Error & {
-		exitCode: number
-		stdout?: string
-		stderr?: string
-	}
-	error.exitCode = exitCode
-	error.stdout = stdoutStr
-	error.stderr = stderrStr
-	return error
+	return new ProcessError(exitCode, stdoutStr, stderrStr)
 }
 
 /**
@@ -73,40 +87,43 @@ function logSpawnDetails(command: string, args: string[], options: SpawnOptionsW
  * Sets up event listeners for the spawned child process
  */
 function setupProcessListeners(
-	cp: ReturnType<typeof spawn>,
+	child: ChildProcessWithoutNullStreams,
 	stdoutCollector: BufferCollector,
 	stderrCollector: BufferCollector,
 	onData: (data: Buffer) => void,
 	onError: (err: unknown) => void,
 	onClose: (code: number) => void,
 ): void {
-	cp.stdout?.on('data', (data) => {
+	child.stdout.on('data', (data) => {
 		stdoutCollector.append(data)
 		onData(data)
 	})
 
-	cp.stderr?.on('data', (data) => {
+	child.stderr.on('data', (data) => {
 		stderrCollector.append(data)
 		onData(data)
 	})
 
-	cp.on('error', onError)
-	cp.on('close', onClose)
+	child.on('error', onError)
+	child.on('close', onClose)
+}
+
+type EventHandlers = {
+	onError: (err: unknown) => void
+	onClose: (code: number) => ProcessExecutionOutput
 }
 
 /**
  * Creates event handlers that clean up listeners
  */
 function createEventHandlers(
-	cp: ReturnType<typeof spawn>,
+	child: ChildProcessWithoutNullStreams,
 	stdoutCollector: BufferCollector,
 	stderrCollector: BufferCollector,
-	resolve: (value: { stdout?: string; stderr?: string }) => void,
-	reject: (reason?: unknown) => void,
-): { onError: (err: unknown) => void; onClose: (code: number) => void } {
+): EventHandlers {
 	const cleanup = (): void => {
-		cp.removeListener('error', onError)
-		cp.removeListener('close', onClose)
+		child.removeListener('error', onError)
+		child.removeListener('close', onClose)
 	}
 
 	const onError = (err: unknown): void => {
@@ -114,10 +131,10 @@ function createEventHandlers(
 		output('runAsync: error')
 		output(JSON.stringify(err, null, 2))
 		output('runAsync: reject promise')
-		reject(err)
+		throw err
 	}
 
-	const onClose = (code: number): void => {
+	const onClose = (code: number): { stdout?: string; stderr?: string } => {
 		cleanup()
 
 		const result = createProcessResult(code, stdoutCollector, stderrCollector)
@@ -126,53 +143,66 @@ function createEventHandlers(
 			output('runAsync: error')
 			output(JSON.stringify(result, null, 2))
 			output('runAsync: reject promise')
-			reject(result)
-			return
+			throw result
 		}
 
 		output('runAsync: success')
 		output(JSON.stringify(result, null, 2))
 		output('runAsync: resolve promise')
-		resolve(result)
+		return result
 	}
 
 	return { onError, onClose }
 }
 
-export function runAsync(
+export async function runAsync(
 	command: string,
 	args: string[],
 	options: SpawnOptionsWithoutStdio,
 	onData: (data: Buffer) => void = () => {},
-): RunAsyncResult {
+): Promise<ProcessExecutionOutput> {
 	const normalizedCommand = normalizeCommand(command)
-	const cpOptions = { ...options, shell: process.platform === 'win32' }
+	const childProcessOptions: SpawnOptionsWithoutStdio = {
+		...options,
+		shell: process.platform === 'win32',
+	}
 
-	logSpawnDetails(normalizedCommand, args, cpOptions)
-
-	let cp: ReturnType<typeof spawn> | undefined
+	logSpawnDetails(normalizedCommand, args, childProcessOptions)
 
 	try {
-		cp = spawn(normalizedCommand, args, cpOptions)
+		const child = spawn(normalizedCommand, args, childProcessOptions)
+
+		const stdoutCollector = new BufferCollector()
+		const stderrCollector = new BufferCollector()
+
+		return new Promise<ProcessExecutionOutput>((resolve, reject) => {
+			const { onError, onClose } = createEventHandlers(child, stdoutCollector, stderrCollector)
+
+			// Wrap handlers to resolve/reject the outer promise
+			const handleError = (err: unknown): void => {
+				try {
+					onError(err)
+				} catch (err) {
+					reject(err)
+				}
+			}
+
+			const handleClose = (code: number): void => {
+				try {
+					const res = onClose(code)
+					// onClose returns the ProcessExecutionOutput; resolve with it
+					resolve(res)
+				} catch (err) {
+					reject(err)
+				}
+			}
+
+			setupProcessListeners(child, stdoutCollector, stderrCollector, onData, handleError, handleClose)
+		})
 	} catch (err) {
 		output('runAsync: error')
 		output(JSON.stringify(err, null, 2))
 		output('runAsync: reject promise')
-		const promise = Promise.reject(err) as RunAsyncResult
-		promise.cp = undefined
-		return promise
+		throw err
 	}
-
-	const { promise, resolve, reject } = Promise.withResolvers<{ stdout?: string; stderr?: string }>()
-
-	const stdoutCollector = new BufferCollector()
-	const stderrCollector = new BufferCollector()
-
-	const { onError, onClose } = createEventHandlers(cp, stdoutCollector, stderrCollector, resolve, reject)
-
-	setupProcessListeners(cp, stdoutCollector, stderrCollector, onData, onError, onClose)
-
-	const result = promise as RunAsyncResult
-	result.cp = cp
-	return result
 }
