@@ -1,4 +1,9 @@
 {
+	"editor.codeActionsOnSave": {
+		"source.organizeImports": "never",
+		"source.organizeImports.biome": "explicit",
+		"source.fixAll.biome": "explicit"
+	},
 	"workbench.colorCustomizations": {
 		"[Default Dark Modern]": {
 			"tab.activeBorderTop": "#00FF00",
