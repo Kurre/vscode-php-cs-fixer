@@ -101,16 +101,14 @@ function processToken(token: unknown, isInScriptStyleTag: boolean): { strings: s
 		} else {
 			result = [escapeTokenContent(content, false)]
 		}
+	} else if (isOpenTag) {
+		result = [`<i></i><!-- %pcs-comment-start#${content}`]
+	} else if (isCloseTag) {
+		result = [wrapTrailingWhitespace(content, '%pcs-comment-end#-->')]
+	} else if (isInlineHtml) {
+		result = [content]
 	} else {
-		if (isOpenTag) {
-			result = [`<i></i><!-- %pcs-comment-start#${content}`]
-		} else if (isCloseTag) {
-			result = [wrapTrailingWhitespace(content, '%pcs-comment-end#-->')]
-		} else if (isInlineHtml) {
-			result = [content]
-		} else {
-			result = [escapeTokenContent(content, true)]
-		}
+		result = [escapeTokenContent(content, true)]
 	}
 
 	return { strings: result, length: content.length }
