@@ -19,7 +19,7 @@
 	"main": "./index",
 	"scripts": {
 		"build": "npm run -S esbuild-base -- --minify",
-		"esbuild-base": "esbuild ./src/index.ts --bundle --outfile=index.js --external:vscode --format=cjs --platform=node",
+		"esbuild-base": "esbuild ./src/index.ts --bundle --outfile=dist/index.js --external:vscode --format=cjs --platform=node",
 		"format": "biome format --write",
 		"lint": "biome lint",
 		"lint:fix": "biome lint --write",
