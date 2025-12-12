@@ -26,6 +26,7 @@
 		"vscode:prepublish": "npm run build",
 		"test": "vitest run",
 		"test:watch": "vitest --watch",
+		"test:coverage": "vitest run --coverage",
 		"watch": "npm run -S esbuild-base -- --sourcemap --watch"
 	},
 	"contributes": {
@@ -171,6 +172,7 @@
 		"@types/js-beautify": "^1.14.3",
 		"@types/node": "^24.10.3",
 		"@types/vscode": "1.107.0",
+		"@vitest/coverage-v8": "^4.0.15",
 		"esbuild": "^0.27.1",
 		"typescript": "^5.9.3",
 		"vitest": "^4.0.15"
