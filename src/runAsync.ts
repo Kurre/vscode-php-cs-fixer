@@ -1,6 +1,7 @@
 import { type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio, spawn } from 'node:child_process'
 
 import { output } from './output'
+import { ProcessError } from './shared/processError'
 
 type ProcessExecutionOutput = {
 	stdout: string
@@ -21,25 +22,6 @@ class BufferCollector {
 
 	toString(): string {
 		return this.buffer?.toString() ?? ''
-	}
-}
-
-/**
- * Represents an error from a process execution with exit code and output
- */
-export class ProcessError extends Error {
-	exitCode: number
-	stdout: string
-	stderr: string
-
-	constructor(exitCode: number, stdout: string, stderr: string) {
-		super(`Command failed with exit code #${exitCode}`)
-		this.name = 'ProcessError'
-		this.exitCode = exitCode
-		this.stdout = stdout
-		this.stderr = stderr
-		// Maintain proper prototype chain for instanceof checks
-		Object.setPrototypeOf(this, ProcessError.prototype)
 	}
 }
 
