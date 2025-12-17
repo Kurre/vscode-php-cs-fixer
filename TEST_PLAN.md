@@ -52,23 +52,23 @@ Main class responsible for:
 ## Current Test Coverage
 
 ### What's Tested:
-- ✅ Functions exist and are callable
-- ✅ Basic initialization
-- ✅ Mock setup works
+- ✅ Configuration loading (`loadSettings`) including platform-specific executable resolution and phar handling
+- ✅ VSCode expression resolution and workspace-dependent paths (`resolveVscodeExpressions`, parts of `loadSettings`)
+- ✅ Command argument building (`getArgs`) including rules/config precedence, `--allow-risky`, path modes, temp files, and Windows path handling
+- ✅ Core formatting, diff and fix flows (`format`, `formattingProvider`, `rangeFormattingProvider`, `fix`, `diff`) including exclusions and partial formatting
+- ✅ Auto-fix bracket/semicolon behavior (`doAutoFixByBracket`, `doAutoFixBySemicolon`) including early-return guards and happy-path flows
+- ✅ File exclusion logic (`isExcluded`) and anymatch integration via formatting and auto-fix tests
+- ✅ Process execution and error propagation (`runAsync`) and process error handling (`processError`)
+- ✅ HTML beautification and output helpers (`beautifyHtml`, `output`)
+- ✅ Phar download helper (`download-phar`)
+- ✅ Extension activation & integration (`activate`/`deactivate`): event listeners, command registration, provider registration, and subscription wiring
 
 ### What's NOT Tested:
-- ❌ Configuration loading logic
-- ❌ VSCode expression resolution
-- ❌ Command argument building
-- ❌ Actual formatting/fixing logic
-- ❌ Error handling and edge cases
-- ❌ Workspace folder detection
-- ❌ File exclusion logic
-- ❌ Auto-fix bracket/semicolon logic
-- ❌ Formatting provider behavior
-- ❌ Event listener integration
-- ❌ Platform-specific behavior (Windows vs Unix)
-- ❌ Update checking logic
+- ❌ `checkUpdate()` behavior (phar auto-download timing, lastDownload timestamp handling, and error paths)
+- ❌ `errorTip()` user interaction flow (message text, "Open Output" action, and command wiring)
+- ❌ Some error and edge cases in `format()`/`fix()` (deep JSON parse failures, complex ENOENT scenarios, non-file URIs)
+- ❌ Broader multi-root workspace behavior beyond the scenarios covered in existing expression/workspace tests
+- ❌ Full platform matrix (Windows vs Unix) beyond the targeted `process.platform` checks in unit tests
 
 ---
 
@@ -263,28 +263,28 @@ Main class responsible for:
 ## Priority Implementation Order
 
 ### High Priority (Core Logic)
-1. Configuration loading tests
-2. VSCode expression resolution tests
-3. Command argument building tests
-4. Formatting provider tests
-5. File exclusion tests
+1. Configuration loading tests **(largely covered by `extension.loadSettings.test.ts`)**
+2. VSCode expression resolution tests **(largely covered by `extension.expressions.test.ts` and loadSettings tests)**
+3. Command argument building tests **(implemented in `extension.getArgs.test.ts`)**
+4. Formatting provider tests **(implemented in `extension.formatting.test.ts`)**
+5. File exclusion tests **(implemented in `extension.isExcluded.test.ts` and formatting/auto-fix tests)**
 
 ### Medium Priority (Features)
-6. Auto-fix bracket/semicolon tests
-7. Format and fix command tests
-8. Error handling tests
-9. Event listener tests
+6. Auto-fix bracket/semicolon tests **(implemented in `extension.autoFix.test.ts`)**
+7. Format and fix command tests **(implemented in `extension.formatting.test.ts`)**
+8. Error handling tests **(partially covered; remaining gaps around JSON parse errors and complex process failures)**
+9. Event listener tests **(implemented in `extension.events.test.ts` and `extension.test.ts`)**
 
 ### Lower Priority (Utilities)
-10. Update checking tests
-11. Error tip tests
-12. Diff command tests
+10. Update checking tests **(still to be implemented; `checkUpdate()` has no dedicated tests)**
+11. Error tip tests **(still to be implemented; `errorTip()` has no dedicated tests)**
+12. Diff command tests **(core behavior covered in `extension.formatting.test.ts` and `extension.events.test.ts`; additional edge cases optional)**
 
 ---
 
 ## Test Implementation Approach
 
-### 1. Create separate test files by feature
+### 1. Test files by feature (current state)
 - `extension.loadSettings.test.ts`
 - `extension.expressions.test.ts`
 - `extension.formatting.test.ts`
