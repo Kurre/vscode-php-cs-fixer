@@ -7,7 +7,9 @@ vi.mock('node:fs')
 vi.mock('node:fs/promises')
 vi.mock('anymatch')
 vi.mock('./beautifyHtml')
-vi.mock('./download-phar')
+vi.mock('./download-phar', () => ({
+	downloadPhpCsFixerFile: vi.fn().mockResolvedValue(undefined),
+}))
 vi.mock('./output')
 vi.mock('./runAsync')
 
@@ -15,6 +17,7 @@ import fs from 'node:fs'
 import * as vscode from 'vscode'
 
 import { activate } from './extension'
+import { downloadPhpCsFixerFile } from './download-phar'
 import { runAsync } from './runAsync'
 
 // Mock fs.statSync
@@ -195,6 +198,21 @@ describe('Extension Event Handlers', () => {
 			handler(mockEvent)
 
 			expect(mockEvent.waitUntil).not.toHaveBeenCalled()
+		})
+	})
+
+	describe('download command', () => {
+		it('registers php-cs-fixer.downloadPhar command and triggers download', async () => {
+			activate(context)
+
+			const registerCalls = (vscode.commands.registerCommand as any).mock.calls
+			const downloadCall = registerCalls.find((call: any[]) => call[0] === 'php-cs-fixer.downloadPhar')
+			expect(downloadCall).toBeDefined()
+
+			const handler = downloadCall[1]
+			await handler()
+
+			expect(downloadPhpCsFixerFile).toHaveBeenCalled()
 		})
 	})
 

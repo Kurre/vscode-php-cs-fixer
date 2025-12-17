@@ -66,10 +66,9 @@ vi.mock('./runAsync')
 
 import * as vscode from 'vscode'
 
-import { PHPCSFixer } from './extension'
+import { getActiveWorkspaceFolder, resolveVscodeExpressions } from './config'
 
-describe('PHPCSFixer.resolveVscodeExpressions()', () => {
-	let phpCSFixer: PHPCSFixer
+describe('resolveVscodeExpressions()', () => {
 	let mockConfig: any
 
 	beforeEach(() => {
@@ -120,26 +119,24 @@ describe('PHPCSFixer.resolveVscodeExpressions()', () => {
 			}
 			return mockConfig
 		})
-
-		phpCSFixer = new PHPCSFixer()
 	})
 
 	describe('${extensionPath} expansion', () => {
 		it('expands ${extensionPath} to __dirname', () => {
-			const result = phpCSFixer.resolveVscodeExpressions('${extensionPath}/php-cs-fixer.phar')
+			const result = resolveVscodeExpressions('${extensionPath}/php-cs-fixer.phar')
 			expect(result).not.toContain('${extensionPath}')
 			expect(result).toContain('php-cs-fixer.phar')
 		})
 
 		it('handles ${extensionPath} at start of path', () => {
 			const input = '${extensionPath}/bin/fixer'
-			const result = phpCSFixer.resolveVscodeExpressions(input)
+			const result = resolveVscodeExpressions(input)
 			expect(result).not.toContain('${extensionPath}')
 		})
 
 		it('leaves unknown expressions unchanged', () => {
 			const input = '${unknownPath}/file.php'
-			const result = phpCSFixer.resolveVscodeExpressions(input)
+			const result = resolveVscodeExpressions(input)
 			expect(result).toBe(input)
 		})
 	})
@@ -147,27 +144,27 @@ describe('PHPCSFixer.resolveVscodeExpressions()', () => {
 	describe('~ (home directory) expansion', () => {
 		it('expands ~ to home directory', () => {
 			const input = '~/php-cs-fixer.phar'
-			const result = phpCSFixer.resolveVscodeExpressions(input)
+			const result = resolveVscodeExpressions(input)
 			const homeDir = os.homedir()
 			expect(result).toBe(path.join(homeDir, 'php-cs-fixer.phar'))
 		})
 
 		it('expands ~/ to home directory with slash', () => {
 			const input = '~/.config/php-cs-fixer'
-			const result = phpCSFixer.resolveVscodeExpressions(input)
+			const result = resolveVscodeExpressions(input)
 			const homeDir = os.homedir()
 			expect(result).toContain(homeDir)
 		})
 
 		it('handles tilde not at start as literal', () => {
 			const input = '/path/to/~file.php'
-			const result = phpCSFixer.resolveVscodeExpressions(input)
+			const result = resolveVscodeExpressions(input)
 			expect(result).toBe(input)
 		})
 
 		it('does not expand tilde without slash following', () => {
 			const input = '~file.php'
-			const result = phpCSFixer.resolveVscodeExpressions(input)
+			const result = resolveVscodeExpressions(input)
 			expect(result).toBe(input)
 		})
 	})
@@ -179,7 +176,7 @@ describe('PHPCSFixer.resolveVscodeExpressions()', () => {
 			})
 
 			const uri = { fsPath: '/workspace/root/file.php', scheme: 'file' }
-			const result = phpCSFixer.resolveVscodeExpressions('${workspaceFolder}/config.php', { uri })
+			const result = resolveVscodeExpressions('${workspaceFolder}/config.php', { uri } as any)
 
 			expect(result).toContain('config.php')
 			expect(result).not.toContain('${workspaceFolder}')
@@ -191,7 +188,7 @@ describe('PHPCSFixer.resolveVscodeExpressions()', () => {
 			})
 
 			const uri = { fsPath: '/workspace/root/file.php', scheme: 'file' }
-			const result = phpCSFixer.resolveVscodeExpressions('${workspaceRoot}/config.php', { uri })
+			const result = resolveVscodeExpressions('${workspaceRoot}/config.php', { uri } as any)
 
 			expect(result).toContain('config.php')
 			expect(result).not.toContain('${workspaceRoot}')
@@ -199,7 +196,7 @@ describe('PHPCSFixer.resolveVscodeExpressions()', () => {
 
 		it('leaves workspace expressions unchanged if no uri context', () => {
 			const input = '${workspaceFolder}/file.php'
-			const result = phpCSFixer.resolveVscodeExpressions(input, {})
+			const result = resolveVscodeExpressions(input, {})
 			expect(result).toBe(input)
 		})
 
@@ -210,7 +207,7 @@ describe('PHPCSFixer.resolveVscodeExpressions()', () => {
 
 			const uri = { fsPath: 'file:///untitled:1', scheme: 'untitled' }
 			const input = '${workspaceFolder}/config.php'
-			const result = phpCSFixer.resolveVscodeExpressions(input, { uri })
+			const result = resolveVscodeExpressions(input, { uri } as any)
 			// Non-file schemes still get expanded if workspace folder is found
 			expect(result).not.toContain('${workspaceFolder}')
 		})
@@ -222,7 +219,7 @@ describe('PHPCSFixer.resolveVscodeExpressions()', () => {
 			;(vscode.workspace.getWorkspaceFolder as any).mockReturnValue(workspaceFolder)
 
 			const uri = { fsPath: '/workspace/file.php', scheme: 'file' }
-			const result = phpCSFixer.getActiveWorkspaceFolder(uri)
+			const result = getActiveWorkspaceFolder(uri as any)
 
 			expect(result).toEqual(workspaceFolder)
 		})
@@ -233,7 +230,7 @@ describe('PHPCSFixer.resolveVscodeExpressions()', () => {
 			;(vscode.workspace as any).workspaceFolders = [workspaceFolder]
 
 			const uri = { fsPath: '/workspace/file.php', scheme: 'file' }
-			const result = phpCSFixer.getActiveWorkspaceFolder(uri)
+			const result = getActiveWorkspaceFolder(uri as any)
 
 			expect(result).toEqual(workspaceFolder)
 		})
@@ -246,7 +243,7 @@ describe('PHPCSFixer.resolveVscodeExpressions()', () => {
 			]
 
 			const uri = { fsPath: '/workspace3/file.php', scheme: 'file' }
-			const result = phpCSFixer.getActiveWorkspaceFolder(uri)
+			const result = getActiveWorkspaceFolder(uri as any)
 
 			expect(result).toBeUndefined()
 		})
@@ -256,7 +253,7 @@ describe('PHPCSFixer.resolveVscodeExpressions()', () => {
 			;(vscode.workspace as any).workspaceFolders = undefined
 
 			const uri = { fsPath: '/file.php', scheme: 'file' }
-			const result = phpCSFixer.getActiveWorkspaceFolder(uri)
+			const result = getActiveWorkspaceFolder(uri as any)
 
 			expect(result).toBeUndefined()
 		})
@@ -266,7 +263,7 @@ describe('PHPCSFixer.resolveVscodeExpressions()', () => {
 			;(vscode.workspace as any).workspaceFolders = []
 
 			const uri = { fsPath: '/file.php', scheme: 'file' }
-			const result = phpCSFixer.getActiveWorkspaceFolder(uri)
+			const result = getActiveWorkspaceFolder(uri as any)
 
 			expect(result).toBeUndefined()
 		})
@@ -274,101 +271,46 @@ describe('PHPCSFixer.resolveVscodeExpressions()', () => {
 
 	describe('Path normalization', () => {
 		it('normalizes paths correctly', () => {
-			const result = phpCSFixer.resolveVscodeExpressions('/path/to/file.php')
+			const result = resolveVscodeExpressions('/path/to/file.php')
 			expect(result).toBe(path.normalize('/path/to/file.php'))
 		})
 
 		it('handles Windows-style paths', () => {
 			const input = 'C:\\Users\\test\\file.php'
-			const result = phpCSFixer.resolveVscodeExpressions(input)
+			const result = resolveVscodeExpressions(input)
 			expect(typeof result).toBe('string')
 			expect(result.length).toBeGreaterThan(0)
 		})
 
 		it('normalizes paths with double slashes', () => {
 			const input = '/path//to///file.php'
-			const result = phpCSFixer.resolveVscodeExpressions(input)
+			const result = resolveVscodeExpressions(input)
 			expect(result).not.toContain('//')
-		})
-	})
-
-	describe('getRealExecutablePath()', () => {
-		it('resolves executable path with context', () => {
-			mockConfig.get = vi.fn((key, defaultValue) => {
-				const configMap: Record<string, any> = {
-					onsave: false,
-					autoFixByBracket: true,
-					autoFixBySemicolon: false,
-					executablePath: '${extensionPath}/php-cs-fixer.phar',
-					executablePathWindows: '',
-					rules: '@PSR12',
-					config: '.php-cs-fixer.php',
-					formatHtml: false,
-					documentFormattingProvider: true,
-					allowRisky: false,
-					pathMode: 'override',
-					ignorePHPVersion: false,
-					exclude: [],
-					tmpDir: '',
-				}
-				return configMap[key] ?? defaultValue
-			})
-
-			;(vscode.workspace.getConfiguration as any).mockImplementation((section: string) => {
-				if (section === 'editor') {
-					return {
-						get: vi.fn((key, defaultValue) => {
-							const editorConfig: Record<string, any> = {
-								formatOnSave: false,
-							}
-							return editorConfig[key] ?? defaultValue
-						}),
-					}
-				}
-				if (section === 'php') {
-					return {
-						get: vi.fn((key, defaultValue) => {
-							const phpConfig: Record<string, any> = {
-								'validate.executablePath': 'php',
-							}
-							return phpConfig[key] ?? defaultValue
-						}),
-					}
-				}
-				return mockConfig
-			})
-
-			const fixer = new PHPCSFixer()
-			const uri = { fsPath: '/workspace/file.php', scheme: 'file' }
-			const result = fixer.getRealExecutablePath(uri)
-
-			expect(typeof result).toBe('string')
-			expect(result.length).toBeGreaterThan(0)
 		})
 	})
 
 	describe('Complex scenarios', () => {
 		it('handles combination of expansions', () => {
 			const input = '${extensionPath}/vendor/bin/fixer'
-			const result = phpCSFixer.resolveVscodeExpressions(input)
+			const result = resolveVscodeExpressions(input)
 			expect(result).not.toContain('${extensionPath}')
 		})
 
 		it('preserves relative paths', () => {
 			const input = './vendor/bin/php-cs-fixer'
-			const result = phpCSFixer.resolveVscodeExpressions(input)
+			const result = resolveVscodeExpressions(input)
 			expect(result).toContain('vendor')
 		})
 
 		it('handles empty string', () => {
-			const result = phpCSFixer.resolveVscodeExpressions('')
+			const result = resolveVscodeExpressions('')
 			// path.normalize('') returns '.'
 			expect(result).toBe('.')
 		})
 
 		it('handles paths with spaces', () => {
 			const input = '/path/with spaces/php-cs-fixer'
-			const result = phpCSFixer.resolveVscodeExpressions(input)
+			const result = resolveVscodeExpressions(input)
 			expect(result).toContain('spaces')
 		})
 	})

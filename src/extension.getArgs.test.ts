@@ -66,10 +66,11 @@ vi.mock('./runAsync')
 
 import * as vscode from 'vscode'
 
-import { PHPCSFixer } from './extension'
+import { FormattingService } from './formattingService'
+import { loadConfig } from './config'
 
-describe('PHPCSFixer.getArgs()', () => {
-	let phpCSFixer: PHPCSFixer
+describe('FormattingService.getArgs()', () => {
+	let formatting: FormattingService
 	let mockConfig: any
 
 	beforeEach(() => {
@@ -124,31 +125,31 @@ describe('PHPCSFixer.getArgs()', () => {
 		;(vscode.workspace.getWorkspaceFolder as any).mockReturnValue(undefined)
 		;(vscode.workspace as any).workspaceFolders = undefined
 
-		phpCSFixer = new PHPCSFixer()
+		formatting = new FormattingService(loadConfig())
 	})
 
 	describe('Basic argument structure', () => {
 		it('includes fix command', () => {
 			const uri = { fsPath: '/workspace/test.php', scheme: 'file' }
-			const args = phpCSFixer.getArgs(uri)
+			const args = formatting.getArgs(uri as any)
 			expect(args).toContain('fix')
 		})
 
 		it('includes --using-cache=no flag', () => {
 			const uri = { fsPath: '/workspace/test.php', scheme: 'file' }
-			const args = phpCSFixer.getArgs(uri)
+			const args = formatting.getArgs(uri as any)
 			expect(args).toContain('--using-cache=no')
 		})
 
 		it('includes --format=json flag', () => {
 			const uri = { fsPath: '/workspace/test.php', scheme: 'file' }
-			const args = phpCSFixer.getArgs(uri)
+			const args = formatting.getArgs(uri as any)
 			expect(args).toContain('--format=json')
 		})
 
 		it('includes file path as last argument', () => {
 			const uri = { fsPath: '/workspace/test.php', scheme: 'file' }
-			const args = phpCSFixer.getArgs(uri)
+			const args = formatting.getArgs(uri as any)
 			expect(args[args.length - 1]).toBe('/workspace/test.php')
 		})
 	})
@@ -199,9 +200,9 @@ describe('PHPCSFixer.getArgs()', () => {
 				return mockConfig
 			})
 
-			const fixer = new PHPCSFixer()
+			const localFormatting = new FormattingService(loadConfig())
 			const uri = { fsPath: '/workspace/test.php', scheme: 'file' }
-			const args = fixer.getArgs(uri)
+			const args = localFormatting.getArgs(uri as any)
 			expect(args).toContain('--path-mode=override')
 		})
 
@@ -209,7 +210,7 @@ describe('PHPCSFixer.getArgs()', () => {
 			const tempDir = os.tmpdir()
 			const tempPath = `${tempDir}/test.php`
 			const uri = { fsPath: tempPath, scheme: 'file' }
-			const args = phpCSFixer.getArgs(uri)
+			const args = formatting.getArgs(uri as any)
 			expect(args).toContain('--path-mode=override')
 		})
 
@@ -258,9 +259,9 @@ describe('PHPCSFixer.getArgs()', () => {
 				return mockConfig
 			})
 
-			const fixer = new PHPCSFixer()
+			const localFormatting = new FormattingService(loadConfig())
 			const uri = { fsPath: '/workspace/test.php', scheme: 'file' }
-			const args = fixer.getArgs(uri)
+			const args = localFormatting.getArgs(uri as any)
 			expect(args).toContain('--path-mode=pathMode')
 		})
 	})
@@ -311,9 +312,9 @@ describe('PHPCSFixer.getArgs()', () => {
 				return mockConfig
 			})
 
-			const fixer = new PHPCSFixer()
+			const localFormatting = new FormattingService(loadConfig())
 			const uri = { fsPath: '/workspace/test.php', scheme: 'file' }
-			const args = fixer.getArgs(uri)
+			const args = localFormatting.getArgs(uri as any)
 			expect(args).toContain('--rules=@PSR12')
 		})
 
@@ -368,9 +369,9 @@ describe('PHPCSFixer.getArgs()', () => {
 				uri: { scheme: 'file', fsPath: '/workspace' },
 			})
 
-			const fixer = new PHPCSFixer()
+			const localFormatting = new FormattingService(loadConfig())
 			const uri = { fsPath: '/workspace/test.php', scheme: 'file' }
-			const args = fixer.getArgs(uri)
+			const args = localFormatting.getArgs(uri as any)
 			// When config file exists, it should have --config= but not --rules=
 			expect(args.some((arg) => arg.includes('--rules='))).toBe(false)
 			expect(args.some((arg) => arg.includes('--config='))).toBe(true)
@@ -423,15 +424,15 @@ describe('PHPCSFixer.getArgs()', () => {
 				return mockConfig
 			})
 
-			const fixer = new PHPCSFixer()
+			const localFormatting = new FormattingService(loadConfig())
 			const uri = { fsPath: '/workspace/test.php', scheme: 'file' }
-			const args = fixer.getArgs(uri)
+			const args = localFormatting.getArgs(uri as any)
 			expect(args).toContain('--allow-risky=yes')
 		})
 
 		it('does not add allow-risky flag when disabled', () => {
 			const uri = { fsPath: '/workspace/test.php', scheme: 'file' }
-			const args = phpCSFixer.getArgs(uri)
+			const args = formatting.getArgs(uri as any)
 			expect(args.some((arg) => arg.includes('--allow-risky'))).toBe(false)
 		})
 	})
@@ -482,9 +483,9 @@ describe('PHPCSFixer.getArgs()', () => {
 				return mockConfig
 			})
 
-			const fixer = new PHPCSFixer()
+			const localFormatting = new FormattingService(loadConfig())
 			const uri = { fsPath: '/workspace/test.php', scheme: 'file' }
-			const args = fixer.getArgs(uri)
+			const args = localFormatting.getArgs(uri as any)
 			expect(args[0]).toContain('fixer.phar')
 		})
 	})
@@ -493,7 +494,7 @@ describe('PHPCSFixer.getArgs()', () => {
 		it('uses provided filePath instead of uri.fsPath', () => {
 			const uri = { fsPath: '/workspace/test.php', scheme: 'file' }
 			const customPath = '/custom/path/file.php'
-			const args = phpCSFixer.getArgs(uri, customPath)
+			const args = formatting.getArgs(uri as any, customPath)
 			expect(args[args.length - 1]).toBe(customPath)
 		})
 	})
@@ -550,9 +551,9 @@ describe('PHPCSFixer.getArgs()', () => {
 				return mockConfig
 			})
 
-			const fixer = new PHPCSFixer()
+			const localFormatting = new FormattingService(loadConfig())
 			const uri = { fsPath: 'C:\\Program Files\\test.php', scheme: 'file' }
-			const args = fixer.getArgs(uri)
+			const args = localFormatting.getArgs(uri as any)
 
 			// Check that the last argument (file path) is the one we passed
 			expect(args[args.length - 1]).toBe('C:\\Program Files\\test.php')

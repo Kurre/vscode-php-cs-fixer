@@ -198,7 +198,7 @@ function inScriptStyleTag(ranges: [number, number | null][], index: number) {
 /**
  * BeautifyOptions with camelCase keys derived from HTMLBeautifyOptions
  */
-type BeautifyOptions = CamelizeKeys<HTMLBeautifyOptions> & {
+export type BeautifyOptions = CamelizeKeys<HTMLBeautifyOptions> & {
 	insertSpaces: boolean
 	tabSize: number
 }

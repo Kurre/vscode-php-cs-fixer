@@ -96,20 +96,21 @@ vi.mock('./runAsync')
 import * as fs from 'node:fs'
 import * as vscode from 'vscode'
 
-import { PHPCSFixer } from './extension'
+import { loadConfig } from './config'
+import { FormattingService } from './formattingService'
 import { runAsync } from './runAsync'
 
 vi.mocked(runAsync).mockResolvedValue({ stdout: JSON.stringify({ files: [{ name: 'test.php' }] }), stderr: '' })
 
-describe('PHPCSFixer Formatting Methods', () => {
+describe('FormattingService Methods', () => {
 	let mockConfig: any
-	let fixer: PHPCSFixer
+	let formatting: FormattingService
 
 	beforeEach(() => {
 		vi.clearAllMocks()
 		mockConfig = createMockConfig({})
 		setupMockWorkspace(mockConfig)
-		fixer = new PHPCSFixer()
+		formatting = new FormattingService(loadConfig())
 	})
 
 	function createMockConfig(overrides: Record<string, any> = {}) {
@@ -174,7 +175,11 @@ describe('PHPCSFixer Formatting Methods', () => {
 			vi.mocked(fs.readFileSync as any).mockReturnValue('<?php echo "formatted";')
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
-			const result = await fixer.format('<?php echo "test";', uri)
+			const result = await formatting.format('<?php echo "test";', uri, () => {}, {
+				isDiff: false,
+				isPartial: false,
+				tmpDirRef: { value: '' },
+			})
 
 			expect(result).toBe('<?php echo "formatted";')
 			expect(runAsync).toHaveBeenCalled()
@@ -188,7 +193,11 @@ describe('PHPCSFixer Formatting Methods', () => {
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
 			const originalText = '<?php echo "test";'
-			const result = await fixer.format(originalText, uri)
+			const result = await formatting.format(originalText, uri, () => {}, {
+				isDiff: false,
+				isPartial: false,
+				tmpDirRef: { value: '' },
+			})
 
 			expect(result).toBe(originalText)
 		})
@@ -201,7 +210,13 @@ describe('PHPCSFixer Formatting Methods', () => {
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
 
-			await expect(fixer.format('<?php echo "test";', uri)).rejects.toThrow()
+			await expect(
+				formatting.format('<?php echo "test";', uri, () => {}, {
+					isDiff: false,
+					isPartial: false,
+					tmpDirRef: { value: '' },
+				}),
+			).rejects.toThrow()
 		})
 
 		it('should pass isDiff flag and return file path in diff mode', async () => {
@@ -211,7 +226,11 @@ describe('PHPCSFixer Formatting Methods', () => {
 			})
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
-			const result = await fixer.format('<?php echo "test";', uri, true)
+			const result = await formatting.format('<?php echo "test";', uri, () => {}, {
+				isDiff: true,
+				isPartial: false,
+				tmpDirRef: { value: '' },
+			})
 
 			// isDiff mode returns the file path instead of reading file content
 			expect(typeof result).toBe('string')
@@ -227,7 +246,11 @@ describe('PHPCSFixer Formatting Methods', () => {
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
 			const buffer = Buffer.from('<?php echo "test";')
-			const result = await fixer.format(buffer, uri)
+			const result = await formatting.format(buffer, uri, () => {}, {
+				isDiff: false,
+				isPartial: false,
+				tmpDirRef: { value: '' },
+			})
 
 			expect(result).toBe('<?php echo "formatted";')
 		})
@@ -240,11 +263,15 @@ describe('PHPCSFixer Formatting Methods', () => {
 			vi.mocked(fs.readFileSync as any).mockReturnValue('<?php echo "test";')
 
 			const uri = (vscode.Uri.file as any)('/workspace/src/test.php')
-			await fixer.format('<?php echo "test";', uri)
+			await formatting.format('<?php echo "test";', uri, () => {}, {
+				isDiff: false,
+				isPartial: false,
+				tmpDirRef: { value: '' },
+			})
 
 			const callArgs = vi.mocked(runAsync).mock.calls[0]
-			expect(callArgs[2]).toBeDefined() // opts argument
-			expect(callArgs[2].cwd).toBe('/workspace/src')
+			expect(callArgs?.[2]).toBeDefined() // opts argument
+			expect(callArgs?.[2].cwd).toBe('/workspace/src')
 		})
 
 		it('should handle partial formatting (temp file mode)', async () => {
@@ -255,7 +282,11 @@ describe('PHPCSFixer Formatting Methods', () => {
 			vi.mocked(fs.readFileSync as any).mockReturnValue('formatted')
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
-			const result = await fixer.format('<?php echo "test";', uri, false, true)
+			const result = await formatting.format('<?php echo "test";', uri, () => {}, {
+				isDiff: false,
+				isPartial: true,
+				tmpDirRef: { value: '' },
+			})
 
 			expect(result).toBe('formatted')
 		})
@@ -265,7 +296,7 @@ describe('PHPCSFixer Formatting Methods', () => {
 		it('should return empty array when document is excluded', async () => {
 			mockConfig = createMockConfig({ exclude: ['vendor/**'] })
 			setupMockWorkspace(mockConfig)
-			const fixer2 = new PHPCSFixer()
+			const formatting2 = new FormattingService(loadConfig())
 
 			const document = {
 				uri: { path: '/workspace/vendor/package/test.php', scheme: 'file' },
@@ -280,7 +311,7 @@ describe('PHPCSFixer Formatting Methods', () => {
 				}),
 			}
 
-			const result = await fixer2.formattingProvider(document as any)
+			const result = await formatting2.formattingProvider(document as any)
 			expect(result).toEqual([])
 		})
 
@@ -303,7 +334,7 @@ describe('PHPCSFixer Formatting Methods', () => {
 				}),
 			}
 
-			const result = await fixer.formattingProvider(document as any)
+			const result = await formatting.formattingProvider(document as any)
 			expect(result).toEqual([])
 		})
 
@@ -330,11 +361,11 @@ describe('PHPCSFixer Formatting Methods', () => {
 				}),
 			}
 
-			const result = await fixer.formattingProvider(document as any)
+			const result = await formatting.formattingProvider(document as any)
 
 			expect(result).toHaveLength(1)
 			expect(result[0]).toBeDefined()
-			expect(result[0].newText).toBe(formattedText)
+			expect(result[0]?.newText).toBe(formattedText)
 		})
 
 		it('should use custom formatting options', async () => {
@@ -357,7 +388,7 @@ describe('PHPCSFixer Formatting Methods', () => {
 			}
 
 			const customOptions = { insertSpaces: false, tabSize: 2 }
-			await fixer.formattingProvider(document as any, customOptions)
+			await formatting.formattingProvider(document as any, customOptions)
 
 			expect(runAsync).toHaveBeenCalled()
 		})
@@ -378,7 +409,7 @@ describe('PHPCSFixer Formatting Methods', () => {
 				}),
 			}
 
-			await expect(fixer.formattingProvider(document as any)).rejects.toThrow()
+			await expect(formatting.formattingProvider(document as any)).rejects.toThrow()
 		})
 	})
 
@@ -386,7 +417,7 @@ describe('PHPCSFixer Formatting Methods', () => {
 		it('should return empty array when document is excluded', async () => {
 			mockConfig = createMockConfig({ exclude: ['vendor/**'] })
 			setupMockWorkspace(mockConfig)
-			const fixer2 = new PHPCSFixer()
+			const formatting2 = new FormattingService(loadConfig())
 
 			const document = {
 				uri: { path: '/workspace/vendor/package/test.php', scheme: 'file' },
@@ -400,7 +431,7 @@ describe('PHPCSFixer Formatting Methods', () => {
 				end: { line: 0, character: 10 },
 			}
 
-			const result = await fixer2.rangeFormattingProvider(document as any, range as any)
+			const result = await formatting2.rangeFormattingProvider(document as any, range as any)
 			expect(result).toEqual([])
 		})
 
@@ -424,10 +455,10 @@ describe('PHPCSFixer Formatting Methods', () => {
 				end: { line: 0, character: 10 },
 			}
 
-			const result = await fixer.rangeFormattingProvider(document as any, range as any)
+			const result = await formatting.rangeFormattingProvider(document as any, range as any)
 
 			expect(result).toHaveLength(1)
-			expect(result[0].newText).toBe('formatted portion')
+			expect(result[0]?.newText).toBe('formatted portion')
 		})
 
 		it('should handle multi-line range selections', async () => {
@@ -450,7 +481,7 @@ describe('PHPCSFixer Formatting Methods', () => {
 				end: { line: 1, character: 18 },
 			}
 
-			const result = await fixer.rangeFormattingProvider(document as any, range as any)
+			const result = await formatting.rangeFormattingProvider(document as any, range as any)
 
 			expect(result).toHaveLength(1)
 		})
@@ -461,7 +492,7 @@ describe('PHPCSFixer Formatting Methods', () => {
 			vi.mocked(runAsync).mockResolvedValue({ stdout: 'Fixed', stderr: '' })
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
-			fixer.fix(uri)
+			formatting.fix(uri)
 
 			await new Promise((resolve) => setTimeout(resolve, 10))
 
@@ -479,7 +510,7 @@ describe('PHPCSFixer Formatting Methods', () => {
 			vi.mocked(runAsync).mockRejectedValue(error)
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
-			fixer.fix(uri)
+			formatting.fix(uri)
 
 			await new Promise((resolve) => setTimeout(resolve, 10))
 
@@ -490,7 +521,7 @@ describe('PHPCSFixer Formatting Methods', () => {
 			vi.mocked(runAsync).mockResolvedValue({ stdout: 'Fixed', stderr: '' })
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
-			fixer.fix(uri)
+			formatting.fix(uri)
 
 			await new Promise((resolve) => setTimeout(resolve, 10))
 
@@ -508,7 +539,7 @@ describe('PHPCSFixer Formatting Methods', () => {
 			})
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
-			fixer.diff(uri)
+			formatting.diff(uri)
 
 			await new Promise((resolve) => setTimeout(resolve, 10))
 
@@ -527,7 +558,7 @@ describe('PHPCSFixer Formatting Methods', () => {
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
 
 			// Should not throw, just handle error
-			fixer.diff(uri)
+			formatting.diff(uri)
 
 			await new Promise((resolve) => setTimeout(resolve, 10))
 

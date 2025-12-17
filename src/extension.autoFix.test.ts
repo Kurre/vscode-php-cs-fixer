@@ -15,20 +15,24 @@ vi.mock('./runAsync')
 
 import * as vscode from 'vscode'
 
-import { PHPCSFixer } from './extension'
-import { runAsync } from './runAsync'
-
-vi.mocked(runAsync).mockResolvedValue({ stdout: JSON.stringify({ files: [{ name: 'test.php' }] }), stderr: '' })
+import { AutoFixService } from './autoFixService'
+import type { FormattingService } from './formattingService'
 
 describe('PHPCSFixer Auto-Fix Features', () => {
 	let mockConfig: any
-	let fixer: PHPCSFixer
+	let autoFix: AutoFixService
+	let formatting: Partial<FormattingService> & { format: ReturnType<typeof vi.fn> }
 
 	beforeEach(() => {
 		vi.clearAllMocks()
 		mockConfig = createMockConfig({})
 		setupMockWorkspace(mockConfig)
-		fixer = new PHPCSFixer()
+		formatting = {
+			format: vi.fn().mockResolvedValue('formatted code'),
+		}
+		autoFix = new AutoFixService(formatting as FormattingService, () =>
+			(vscode.Uri.file as any)('/workspace/test.php'),
+		)
 	})
 
 	function createMockConfig(overrides: Record<string, any> = {}) {
@@ -130,7 +134,7 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 				document: createMockDocument('<?php\nfunction test() {\n}\n', []),
 			}
 
-			fixer.doAutoFixByBracket(event as any)
+			autoFix.doAutoFixByBracket(event as any)
 
 			expect(vscode.commands.executeCommand).not.toHaveBeenCalled()
 		})
@@ -141,7 +145,7 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 				document: createMockDocument('<?php\nfunction test() {\n}\n', []),
 			}
 
-			fixer.doAutoFixByBracket(event as any)
+			autoFix.doAutoFixByBracket(event as any)
 
 			expect(vscode.commands.executeCommand).not.toHaveBeenCalled()
 		})
@@ -154,7 +158,7 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 				document: createMockDocument('<?php\nfunction test() {\n}\n', []),
 			}
 
-			fixer.doAutoFixByBracket(event as any)
+			autoFix.doAutoFixByBracket(event as any)
 
 			expect(vscode.commands.executeCommand).not.toHaveBeenCalled()
 		})
@@ -174,7 +178,7 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 				document,
 			}
 
-			fixer.doAutoFixByBracket(event as any)
+			autoFix.doAutoFixByBracket(event as any)
 
 			expect(vscode.commands.executeCommand).toHaveBeenCalledWith('editor.action.jumpToBracket')
 		})
@@ -205,7 +209,7 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 				document,
 			}
 
-			fixer.doAutoFixByBracket(event as any)
+			autoFix.doAutoFixByBracket(event as any)
 
 			// Wait for async chain
 			await new Promise((resolve) => setTimeout(resolve, 10))
@@ -238,15 +242,12 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 				return Promise.resolve()
 			})
 
-			// Mock format to return formatted text
-			const formatSpy = vi.spyOn(fixer, 'format').mockResolvedValue('formatted code')
-
 			const event = {
 				contentChanges: [{ text: '}' }],
 				document,
 			}
 
-			fixer.doAutoFixByBracket(event as any)
+			autoFix.doAutoFixByBracket(event as any)
 
 			await new Promise((resolve) => setTimeout(resolve, 10))
 
@@ -261,10 +262,10 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 				document: createMockDocument('<?php\necho "test";\n', []),
 			}
 
-			fixer.doAutoFixBySemicolon(event as any)
+			autoFix.doAutoFixBySemicolon(event as any)
 
 			// format should not be called
-			const formatSpy = vi.spyOn(fixer, 'format')
+			const formatSpy = formatting.format
 			expect(formatSpy).not.toHaveBeenCalled()
 		})
 
@@ -274,9 +275,9 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 				document: createMockDocument('<?php\necho "test";\n', []),
 			}
 
-			fixer.doAutoFixBySemicolon(event as any)
+			autoFix.doAutoFixBySemicolon(event as any)
 
-			const formatSpy = vi.spyOn(fixer, 'format')
+			const formatSpy = formatting.format
 			expect(formatSpy).not.toHaveBeenCalled()
 		})
 
@@ -288,9 +289,9 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 				document: createMockDocument('<?php\necho "test";\n', []),
 			}
 
-			fixer.doAutoFixBySemicolon(event as any)
+			autoFix.doAutoFixBySemicolon(event as any)
 
-			const formatSpy = vi.spyOn(fixer, 'format')
+			const formatSpy = formatting.format
 			expect(formatSpy).not.toHaveBeenCalled()
 		})
 
@@ -309,8 +310,8 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 				document,
 			}
 
-			const formatSpy = vi.spyOn(fixer, 'format')
-			fixer.doAutoFixBySemicolon(event as any)
+			const formatSpy = formatting.format
+			autoFix.doAutoFixBySemicolon(event as any)
 
 			expect(formatSpy).not.toHaveBeenCalled()
 		})
@@ -330,8 +331,8 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 				document,
 			}
 
-			const formatSpy = vi.spyOn(fixer, 'format')
-			fixer.doAutoFixBySemicolon(event as any)
+			const formatSpy = formatting.format
+			autoFix.doAutoFixBySemicolon(event as any)
 
 			expect(formatSpy).not.toHaveBeenCalled()
 		})
@@ -348,14 +349,14 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 			;(vscode.window as any).activeTextEditor = editor
 
 			// Mock format to return formatted text
-			const formatSpy = vi.spyOn(fixer, 'format').mockResolvedValue('echo "test";')
+			const formatSpy = formatting.format.mockResolvedValue('echo "test";')
 
 			const event = {
 				contentChanges: [{ text: ';' }],
 				document,
 			}
 
-			fixer.doAutoFixBySemicolon(event as any)
+			autoFix.doAutoFixBySemicolon(event as any)
 
 			await new Promise((resolve) => setTimeout(resolve, 10))
 
@@ -377,14 +378,14 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 			// After prefixing: '<?php\n$__pcf__spliter=0;\necho   "test"  ;'
 			// After dealFun on original: 'echo   "test"  ;' (but trailing spaces stripped -> 'echo   "test"  ;')
 			// We return formatted with normal spacing that's different
-			vi.spyOn(fixer, 'format').mockResolvedValue('<?php\n$__pcf__spliter=0;\necho "formatted";')
+			formatting.format.mockResolvedValue('<?php\n$__pcf__spliter=0;\necho "formatted";')
 
 			const event = {
 				contentChanges: [{ text: ';' }],
 				document,
 			}
 
-			fixer.doAutoFixBySemicolon(event as any)
+			autoFix.doAutoFixBySemicolon(event as any)
 
 			await new Promise((resolve) => setTimeout(resolve, 20))
 
@@ -403,14 +404,14 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 			;(vscode.window as any).activeTextEditor = editor
 
 			// Mock format to return same text
-			vi.spyOn(fixer, 'format').mockResolvedValue('echo "test";')
+			formatting.format.mockResolvedValue('echo "test";')
 
 			const event = {
 				contentChanges: [{ text: ';' }],
 				document,
 			}
 
-			fixer.doAutoFixBySemicolon(event as any)
+			autoFix.doAutoFixBySemicolon(event as any)
 
 			await new Promise((resolve) => setTimeout(resolve, 10))
 
@@ -430,14 +431,14 @@ describe('PHPCSFixer Auto-Fix Features', () => {
 			;(vscode.window as any).activeTextEditor = editor
 
 			// Mock format to reject
-			const formatSpy = vi.spyOn(fixer, 'format').mockRejectedValue(new Error('Format failed'))
+			const formatSpy = formatting.format.mockRejectedValue(new Error('Format failed'))
 
 			const event = {
 				contentChanges: [{ text: ';' }],
 				document,
 			}
 
-			fixer.doAutoFixBySemicolon(event as any)
+			autoFix.doAutoFixBySemicolon(event as any)
 
 			await new Promise((resolve) => setTimeout(resolve, 10))
 
