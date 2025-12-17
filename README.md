@@ -226,6 +226,37 @@ per default by adding this to your settings:
 
 For more information please visit: [https://github.com/FriendsOfPHP/PHP-CS-Fixer](https://github.com/FriendsOfPHP/PHP-CS-Fixer)
 
+## Responsibilities – extension vs php-cs-fixer
+
+**Extension responsibilities (what this repo owns and tests):**
+
+- **VS Code integration**: commands, events, and formatting providers.
+- **Configuration**: loading `php-cs-fixer.*` settings, applying defaults, and
+  resolving VS Code expressions like `${workspaceFolder}`, `${extensionPath}`
+  and `~/`.
+- **Argument building**: constructing the `php-cs-fixer` CLI invocation
+  (`fix`, `--using-cache=no`, `--format=json`, `--config` / `--rules`,
+  `--allow-risky`, `--path-mode`, target path).
+- **Orchestration**: temp file handling, calling the CLI, interpreting minimal
+  JSON output (`files.length`), mapping errors to status bar and output.
+- **Auto-fix & exclusion**: auto-fix on `}` and `;`, and applying `exclude`
+  globs via `anymatch`.
+- **Optional HTML formatting**: when `php-cs-fixer.formatHtml` is enabled, the
+  extension runs an HTML-aware beautifier over the document before calling
+  `php-cs-fixer`. This is an opt-in feature on top of the core PHP integration.
+
+**php-cs-fixer responsibilities (what the CLI owns and tests):**
+
+- Applying actual formatting rules (PSR, Symfony, PER-CS, etc.).
+- Detailed structure and content of the JSON output beyond what the extension
+  reads.
+- Exact wording of error messages and full exit code semantics.
+- Validation of rule sets and config file contents.
+
+Tests in this project focus on extension behavior (config/paths/arguments,
+orchestration, VS Code wiring), not on the details of how `php-cs-fixer`
+formats PHP code.
+
 ## License
 
 MIT

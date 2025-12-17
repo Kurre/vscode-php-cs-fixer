@@ -2,6 +2,7 @@
 	"name": "php-cs-fixer-fork",
 	"displayName": "php cs fixer",
 	"version": "0.3.21",
+	"type": "module",
 	"description": "PHP CS Fixer extension for VS Code, php formatter, php code beautify tool, format html",
 	"categories": [
 		"Formatters",
@@ -27,6 +28,9 @@
 		"test": "vitest run",
 		"test:watch": "vitest --watch",
 		"test:coverage": "vitest run --coverage",
+		"test:unit": "vitest run",
+		"test:integration": "vitest run src/extension.test.ts src/extension.events.test.ts",
+		"test:slow": "RUN_SLOW=1 vitest run src/extension.slow-phpcs.test.ts",
 		"watch": "npm run -S esbuild-base -- --sourcemap --watch"
 	},
 	"contributes": {
@@ -49,6 +53,10 @@
 			{
 				"command": "php-cs-fixer.showOutput",
 				"title": "php-cs-fixer: showOutput"
+			},
+			{
+				"command": "php-cs-fixer.downloadPhar",
+				"title": "php-cs-fixer: download php-cs-fixer.phar"
 			}
 		],
 		"configuration": {

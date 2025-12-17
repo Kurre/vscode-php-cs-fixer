@@ -2,41 +2,39 @@
 
 ## Extension Logic Analysis
 
-### 1. **PHPCSFixer Class** (Core Business Logic)
-Main class responsible for:
-- Configuration management and loading
-- VSCode expression resolution
-- Building and executing php-cs-fixer commands
-- Document formatting and range formatting
-- Auto-fix on bracket/semicolon
-- File exclusion logic
+### 1. **PHPCSFixer / Services** (Core Business Logic)
 
-#### Key Methods to Test:
+Current implementation centralises most behavior in `PHPCSFixer`. The target
+architecture is to keep the same externally visible behavior while gradually
+moving logic into focused services (e.g. `ConfigService`, `FormattingService`,
+`AutoFixService`) that can be tested in isolation.
 
-**Configuration & Setup:**
-- `loadSettings()` - loads config from workspace with platform-specific defaults
-- `resolveVscodeExpressions()` - expands ${extensionPath}, ${workspaceFolder}, ~/ paths
-- `getActiveWorkspaceFolder()` - returns correct workspace folder or falls back to single root
+Main extension responsibilities to cover with tests:
 
-**Command Building:**
-- `getArgs()` - generates correct cli arguments based on config
-- `getRealExecutablePath()` - resolves executable path with expressions
+- **Configuration & Setup**
+  - `loadSettings()` – loads config from workspace with platform-specific defaults.
+  - `resolveVscodeExpressions()` – expands `${extensionPath}`, `${workspaceFolder}`, `~/` paths.
+  - `getActiveWorkspaceFolder()` – returns correct workspace folder or falls back to single root.
 
-**Core Formatting:**
-- `format()` - executes php-cs-fixer and handles output
-- `formattingProvider()` - document-wide formatting (implements VSCode interface)
-- `rangeFormattingProvider()` - partial document formatting
-- `fix()` - direct file fixing
-- `diff()` - shows diff output
+- **Command Building**
+  - `getArgs()` – generates correct CLI arguments based on config.
+  - `getRealExecutablePath()` – resolves executable path with expressions.
 
-**Auto-fix Features:**
-- `doAutoFixByBracket()` - triggers on closing bracket
-- `doAutoFixBySemicolon()` - triggers on semicolon
-- `isExcluded()` - checks anymatch patterns against file path
+- **Core Formatting**
+  - `format()` – executes php-cs-fixer and handles output.
+  - `formattingProvider()` – document-wide formatting (implements VS Code interface).
+  - `rangeFormattingProvider()` – partial document formatting.
+  - `fix()` – direct file fixing.
+  - `diff()` – shows diff output.
 
-**Utilities:**
-- `checkUpdate()` - periodic update check
-- `errorTip()` - error message display
+- **Auto-fix Features**
+  - `doAutoFixByBracket()` – triggers on closing bracket.
+  - `doAutoFixBySemicolon()` – triggers on semicolon.
+  - `isExcluded()` – checks anymatch patterns against file path.
+
+- **Utilities**
+  - `checkUpdate()` – periodic update check.
+  - `errorTip()` – error message display.
 
 ### 2. **Extension Activation** (`activate()`)
 - Creates PHPCSFixer instance

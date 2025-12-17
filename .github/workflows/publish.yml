@@ -2,7 +2,7 @@ name: publish
 
 on:
   push:
-    branches: ['master']
+    branches: ["master"]
 #   pull_request:
 #     branches: [ "master" ]
 
@@ -22,6 +22,7 @@ jobs:
 
       - run: npm install
       - run: npm install -g vsce esbuild
+      - run: npm run test:unit
       - run: node ./download-phar.js
       # - run: esbuild ./src/index.ts --bundle --minify --outfile=./index.js --external:vscode --format=cjs --platform=node
       - run: vsce publish -p ${{ secrets.VSC_TOKEN }}

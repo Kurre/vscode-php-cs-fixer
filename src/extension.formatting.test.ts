@@ -98,18 +98,22 @@ import * as vscode from 'vscode'
 
 import { PHPCSFixer } from './extension'
 import { runAsync } from './runAsync'
+import { FormattingService } from './formattingService'
+import { loadConfig } from './config'
 
 vi.mocked(runAsync).mockResolvedValue({ stdout: JSON.stringify({ files: [{ name: 'test.php' }] }), stderr: '' })
 
 describe('PHPCSFixer Formatting Methods', () => {
 	let mockConfig: any
 	let fixer: PHPCSFixer
+	let formatting: FormattingService
 
 	beforeEach(() => {
 		vi.clearAllMocks()
 		mockConfig = createMockConfig({})
 		setupMockWorkspace(mockConfig)
 		fixer = new PHPCSFixer()
+		formatting = new FormattingService(loadConfig())
 	})
 
 	function createMockConfig(overrides: Record<string, any> = {}) {
@@ -174,7 +178,11 @@ describe('PHPCSFixer Formatting Methods', () => {
 			vi.mocked(fs.readFileSync as any).mockReturnValue('<?php echo "formatted";')
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
-			const result = await fixer.format('<?php echo "test";', uri)
+			const result = await formatting.format('<?php echo "test";', uri, () => {}, {
+				isDiff: false,
+				isPartial: false,
+				tmpDirRef: { value: '' },
+			})
 
 			expect(result).toBe('<?php echo "formatted";')
 			expect(runAsync).toHaveBeenCalled()
@@ -188,7 +196,11 @@ describe('PHPCSFixer Formatting Methods', () => {
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
 			const originalText = '<?php echo "test";'
-			const result = await fixer.format(originalText, uri)
+			const result = await formatting.format(originalText, uri, () => {}, {
+				isDiff: false,
+				isPartial: false,
+				tmpDirRef: { value: '' },
+			})
 
 			expect(result).toBe(originalText)
 		})
@@ -201,7 +213,13 @@ describe('PHPCSFixer Formatting Methods', () => {
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
 
-			await expect(fixer.format('<?php echo "test";', uri)).rejects.toThrow()
+			await expect(
+				formatting.format('<?php echo "test";', uri, () => {}, {
+					isDiff: false,
+					isPartial: false,
+					tmpDirRef: { value: '' },
+				}),
+			).rejects.toThrow()
 		})
 
 		it('should pass isDiff flag and return file path in diff mode', async () => {
@@ -211,7 +229,11 @@ describe('PHPCSFixer Formatting Methods', () => {
 			})
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
-			const result = await fixer.format('<?php echo "test";', uri, true)
+			const result = await formatting.format('<?php echo "test";', uri, () => {}, {
+				isDiff: true,
+				isPartial: false,
+				tmpDirRef: { value: '' },
+			})
 
 			// isDiff mode returns the file path instead of reading file content
 			expect(typeof result).toBe('string')
@@ -227,7 +249,11 @@ describe('PHPCSFixer Formatting Methods', () => {
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
 			const buffer = Buffer.from('<?php echo "test";')
-			const result = await fixer.format(buffer, uri)
+			const result = await formatting.format(buffer, uri, () => {}, {
+				isDiff: false,
+				isPartial: false,
+				tmpDirRef: { value: '' },
+			})
 
 			expect(result).toBe('<?php echo "formatted";')
 		})
@@ -240,7 +266,11 @@ describe('PHPCSFixer Formatting Methods', () => {
 			vi.mocked(fs.readFileSync as any).mockReturnValue('<?php echo "test";')
 
 			const uri = (vscode.Uri.file as any)('/workspace/src/test.php')
-			await fixer.format('<?php echo "test";', uri)
+			await formatting.format('<?php echo "test";', uri, () => {}, {
+				isDiff: false,
+				isPartial: false,
+				tmpDirRef: { value: '' },
+			})
 
 			const callArgs = vi.mocked(runAsync).mock.calls[0]
 			expect(callArgs[2]).toBeDefined() // opts argument
@@ -255,7 +285,11 @@ describe('PHPCSFixer Formatting Methods', () => {
 			vi.mocked(fs.readFileSync as any).mockReturnValue('formatted')
 
 			const uri = (vscode.Uri.file as any)('/workspace/test.php')
-			const result = await fixer.format('<?php echo "test";', uri, false, true)
+			const result = await formatting.format('<?php echo "test";', uri, () => {}, {
+				isDiff: false,
+				isPartial: true,
+				tmpDirRef: { value: '' },
+			})
 
 			expect(result).toBe('formatted')
 		})
