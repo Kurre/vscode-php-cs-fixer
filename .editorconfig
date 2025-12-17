@@ -13,17 +13,17 @@ trim_trailing_whitespace = true
 # TypeScript/JavaScript
 [*.{ts,js,mjs,cjs}]
 indent_style = tab
-indent_size = 2
+indent_size = 4
 
 # JSON
 [*.json]
 indent_style = tab
-indent_size = 2
+indent_size = 4
 
 # YAML
 [*.{yml,yaml}]
 indent_style = space
-indent_size = 2
+indent_size = 4
 
 # Markdown
 [*.md]
