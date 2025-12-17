@@ -29,7 +29,7 @@ const TEMP_DIR = os.tmpdir()
 const HOME_DIR = os.homedir()
 let isRunning = false
 
-interface PHPCSFixerConfig {
+export interface PHPCSFixerConfig {
 	onsave: boolean
 	autoFixByBracket: boolean
 	autoFixBySemicolon: boolean
@@ -49,7 +49,7 @@ interface PHPCSFixerConfig {
 	tmpDir: string
 }
 
-class PHPCSFixer implements PHPCSFixerConfig {
+export class PHPCSFixer implements PHPCSFixerConfig {
 	onsave = false
 	autoFixByBracket = false
 	autoFixBySemicolon = false

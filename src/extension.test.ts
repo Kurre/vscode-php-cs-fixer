@@ -1,4 +1,4 @@
-import * as fs from 'node:fs'
+import fs from 'node:fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock vscode first before any other imports
@@ -200,72 +200,5 @@ describe('extension.ts - activate/deactivate', () => {
 			activate(context)
 			activate(context)
 		}).not.toThrow()
-	})
-
-	it('configuration loads with valid settings', () => {
-		mockConfig.get('onsave', false)
-		expect(mockConfig.get).toHaveBeenCalledWith('onsave', false)
-	})
-
-	it('configuration loads executablePath', () => {
-		mockConfig.get('executablePath', 'php-cs-fixer')
-		expect(mockConfig.get).toHaveBeenCalledWith('executablePath', 'php-cs-fixer')
-	})
-
-	it('configuration loads rules', () => {
-		mockConfig.get('rules', '@PSR12')
-		expect(mockConfig.get).toHaveBeenCalledWith('rules', '@PSR12')
-	})
-
-	it('file system mocks are working', () => {
-		;(fs.writeFileSync as any)('/tmp/test.php', 'test')
-		expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/test.php', 'test')
-	})
-
-	it('file existence check works', () => {
-		;(fs.existsSync as any)('/tmp/test.php')
-		expect(fs.existsSync).toHaveBeenCalledWith('/tmp/test.php')
-	})
-
-	it('directory creation works', () => {
-		;(fs.mkdirSync as any)('/tmp/dir', { recursive: true })
-		expect(fs.mkdirSync).toHaveBeenCalledWith('/tmp/dir', { recursive: true })
-	})
-
-	it('JSON parsing works', () => {
-		const json = '{"test": true}'
-		const parsed = JSON.parse(json)
-		expect(parsed.test).toBe(true)
-	})
-
-	it('error handling works', () => {
-		const error = new Error('test error')
-		expect(error.message).toBe('test error')
-	})
-
-	it('vscode Uri.file creates file URIs', () => {
-		const uri = vscode.Uri.file('/path/to/file.php')
-		expect(uri.fsPath).toBe('/path/to/file.php')
-		expect(uri.scheme).toBe('file')
-	})
-
-	it('vscode Position creates positions', () => {
-		const pos = new (vscode as any).Position(5, 10)
-		expect(pos.line).toBe(5)
-		expect(pos.character).toBe(10)
-	})
-
-	it('vscode Range creates ranges', () => {
-		const start = new (vscode as any).Position(0, 0)
-		const end = new (vscode as any).Position(1, 0)
-		const range = new (vscode as any).Range(start, end)
-		expect(range.start).toBe(start)
-		expect(range.end).toBe(end)
-	})
-
-	it('vscode TextEdit.replace creates text edits', () => {
-		const range = new (vscode as any).Range(new (vscode as any).Position(0, 0), new (vscode as any).Position(0, 5))
-		const edit = vscode.TextEdit.replace(range, 'new text')
-		expect(edit.newText).toBe('new text')
 	})
 })
