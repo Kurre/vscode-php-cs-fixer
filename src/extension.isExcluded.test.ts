@@ -91,9 +91,10 @@ vi.mock('./runAsync')
 
 import * as vscode from 'vscode'
 
-import { PHPCSFixer } from './extension'
+import { FormattingService } from './formattingService'
+import { loadConfig } from './config'
 
-describe('PHPCSFixer.isExcluded()', () => {
+describe('FormattingService.isExcluded()', () => {
 	let mockConfig: any
 
 	beforeEach(() => {
@@ -146,7 +147,8 @@ describe('PHPCSFixer.isExcluded()', () => {
 	}
 
 	it('returns false if no exclude patterns configured', () => {
-		const fixer = new PHPCSFixer()
+		const config = loadConfig()
+		const fixer = new FormattingService(config)
 		const document = {
 			uri: { path: '/workspace/vendor/package.php', scheme: 'file' },
 			languageId: 'php',
@@ -158,7 +160,8 @@ describe('PHPCSFixer.isExcluded()', () => {
 	it('returns false for untitled documents', () => {
 		mockConfig = createMockConfig({ exclude: ['vendor/**'] })
 		setupMockWorkspace(mockConfig)
-		const fixer = new PHPCSFixer()
+		const config = loadConfig()
+		const fixer = new FormattingService(config)
 		const document = {
 			uri: { path: 'untitled:1', scheme: 'untitled' },
 			languageId: 'php',
@@ -170,7 +173,8 @@ describe('PHPCSFixer.isExcluded()', () => {
 	it('returns false for non-file scheme URIs', () => {
 		mockConfig = createMockConfig({ exclude: ['vendor/**'] })
 		setupMockWorkspace(mockConfig)
-		const fixer = new PHPCSFixer()
+		const config = loadConfig()
+		const fixer = new FormattingService(config)
 		const document = {
 			uri: { path: 'ssh://remote/vendor/file.php', scheme: 'ssh' },
 			languageId: 'php',
@@ -182,7 +186,8 @@ describe('PHPCSFixer.isExcluded()', () => {
 	it('excludes files matching vendor/** pattern', () => {
 		mockConfig = createMockConfig({ exclude: ['vendor/**'] })
 		setupMockWorkspace(mockConfig)
-		const fixer = new PHPCSFixer()
+		const config = loadConfig()
+		const fixer = new FormattingService(config)
 		const document = {
 			uri: { path: '/workspace/vendor/package/file.php', scheme: 'file' },
 			languageId: 'php',
@@ -194,7 +199,8 @@ describe('PHPCSFixer.isExcluded()', () => {
 	it('excludes files matching node_modules/** pattern', () => {
 		mockConfig = createMockConfig({ exclude: ['node_modules/**'] })
 		setupMockWorkspace(mockConfig)
-		const fixer = new PHPCSFixer()
+		const config = loadConfig()
+		const fixer = new FormattingService(config)
 		const document = {
 			uri: { path: '/workspace/node_modules/pkg/index.php', scheme: 'file' },
 			languageId: 'php',
@@ -206,7 +212,8 @@ describe('PHPCSFixer.isExcluded()', () => {
 	it('excludes files matching tests/** pattern', () => {
 		mockConfig = createMockConfig({ exclude: ['tests/**'] })
 		setupMockWorkspace(mockConfig)
-		const fixer = new PHPCSFixer()
+		const config = loadConfig()
+		const fixer = new FormattingService(config)
 		const document = {
 			uri: { path: '/workspace/tests/Unit/SomeTest.php', scheme: 'file' },
 			languageId: 'php',
@@ -218,7 +225,8 @@ describe('PHPCSFixer.isExcluded()', () => {
 	it('does not exclude files not matching pattern', () => {
 		mockConfig = createMockConfig({ exclude: ['vendor/**', 'node_modules/**'] })
 		setupMockWorkspace(mockConfig)
-		const fixer = new PHPCSFixer()
+		const config = loadConfig()
+		const fixer = new FormattingService(config)
 		const document = {
 			uri: { path: '/workspace/src/MyClass.php', scheme: 'file' },
 			languageId: 'php',
@@ -230,7 +238,8 @@ describe('PHPCSFixer.isExcluded()', () => {
 	it('handles multiple exclude patterns', () => {
 		mockConfig = createMockConfig({ exclude: ['vendor/**', 'node_modules/**', '*.backup.php'] })
 		setupMockWorkspace(mockConfig)
-		const fixer = new PHPCSFixer()
+		const config = loadConfig()
+		const fixer = new FormattingService(config)
 
 		// Should match vendor pattern
 		const vendorDoc = {

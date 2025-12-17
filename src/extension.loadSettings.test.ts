@@ -65,11 +65,10 @@ vi.mock('./runAsync')
 
 import * as vscode from 'vscode'
 
-import { PHPCSFixer } from './extension'
+import { loadConfig } from './config'
 
-describe('PHPCSFixer.loadSettings()', () => {
+describe('loadConfig()', () => {
 	let mockConfig: any
-	let phpCSFixer: PHPCSFixer
 
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -121,50 +120,58 @@ describe('PHPCSFixer.loadSettings()', () => {
 			}
 			return mockConfig
 		})
-
-		phpCSFixer = new PHPCSFixer()
 	})
 
 	describe('Basic configuration loading', () => {
 		it('loads onsave setting with default false', () => {
-			expect(phpCSFixer.onsave).toBe(false)
+			const config = loadConfig()
+			expect(config.onsave).toBe(false)
 		})
 
 		it('loads autoFixByBracket with default true', () => {
-			expect(phpCSFixer.autoFixByBracket).toBe(true)
+			const config = loadConfig()
+			expect(config.autoFixByBracket).toBe(true)
 		})
 
 		it('loads autoFixBySemicolon with default false', () => {
-			expect(phpCSFixer.autoFixBySemicolon).toBe(false)
+			const config = loadConfig()
+			expect(config.autoFixBySemicolon).toBe(false)
 		})
 
 		it('loads formatHtml setting', () => {
-			expect(phpCSFixer.formatHtml).toBe(false)
+			const config = loadConfig()
+			expect(config.formatHtml).toBe(false)
 		})
 
 		it('loads documentFormattingProvider setting', () => {
-			expect(phpCSFixer.documentFormattingProvider).toBe(true)
+			const config = loadConfig()
+			expect(config.documentFormattingProvider).toBe(true)
 		})
 
 		it('loads allowRisky setting', () => {
-			expect(phpCSFixer.allowRisky).toBe(false)
+			const config = loadConfig()
+			expect(config.allowRisky).toBe(false)
 		})
 
 		it('loads pathMode setting', () => {
-			expect(phpCSFixer.pathMode).toBe('override')
+			const config = loadConfig()
+			expect(config.pathMode).toBe('override')
 		})
 
 		it('loads ignorePHPVersion setting', () => {
-			expect(phpCSFixer.ignorePHPVersion).toBe(false)
+			const config = loadConfig()
+			expect(config.ignorePHPVersion).toBe(false)
 		})
 
 		it('loads exclude array setting', () => {
-			expect(phpCSFixer.exclude).toEqual([])
-			expect(Array.isArray(phpCSFixer.exclude)).toBe(true)
+			const config = loadConfig()
+			expect(config.exclude).toEqual([])
+			expect(Array.isArray(config.exclude)).toBe(true)
 		})
 
 		it('loads tmpDir setting', () => {
-			expect(phpCSFixer.tmpDir).toBe('')
+			const config = loadConfig()
+			expect(config.tmpDir).toBe('')
 		})
 	})
 
@@ -176,9 +183,9 @@ describe('PHPCSFixer.loadSettings()', () => {
 				configurable: true,
 			})
 
-			const win32Fixer = new PHPCSFixer()
+			const config = loadConfig()
 			// Should be php-cs-fixer unless overridden
-			expect(typeof win32Fixer.executablePath).toBe('string')
+			expect(typeof config.executablePath).toBe('string')
 
 			Object.defineProperty(process, 'platform', {
 				value: originalPlatform,
@@ -187,7 +194,8 @@ describe('PHPCSFixer.loadSettings()', () => {
 		})
 
 		it('uses php-cs-fixer on Unix by default', () => {
-			expect(typeof phpCSFixer.executablePath).toBe('string')
+			const config = loadConfig()
+			expect(typeof config.executablePath).toBe('string')
 		})
 
 		it('loads executablePathWindows override on Windows', () => {
@@ -217,8 +225,8 @@ describe('PHPCSFixer.loadSettings()', () => {
 				configurable: true,
 			})
 
-			const win32Fixer = new PHPCSFixer()
-			expect(win32Fixer.executablePath).toContain('/custom/path/fixer.bat')
+			const config = loadConfig()
+			expect(config.executablePath).toContain('/custom/path/fixer.bat')
 
 			Object.defineProperty(process, 'platform', {
 				value: originalPlatform,
@@ -247,14 +255,15 @@ describe('PHPCSFixer.loadSettings()', () => {
 				return configMap[key] ?? defaultValue
 			})
 
-			const unixFixer = new PHPCSFixer()
-			expect(unixFixer.executablePath).not.toContain('fixer.bat')
+			const config = loadConfig()
+			expect(config.executablePath).not.toContain('fixer.bat')
 		})
 	})
 
 	describe('Rules configuration', () => {
 		it('loads rules with default @PSR12', () => {
-			expect(phpCSFixer.rules).toBe('@PSR12')
+			const config = loadConfig()
+			expect(config.rules).toBe('@PSR12')
 		})
 
 		it('converts rules object to JSON string', () => {
@@ -278,9 +287,9 @@ describe('PHPCSFixer.loadSettings()', () => {
 				return configMap[key] ?? defaultValue
 			})
 
-			const objectRulesFixer = new PHPCSFixer()
-			expect(typeof objectRulesFixer.rules).toBe('string')
-			expect(JSON.parse(objectRulesFixer.rules as string)).toEqual({
+			const config = loadConfig()
+			expect(typeof config.rules).toBe('string')
+			expect(JSON.parse(config.rules as string)).toEqual({
 				array_syntax: { syntax: 'short' },
 				trailing_comma_in_multiline: true,
 			})
@@ -289,7 +298,8 @@ describe('PHPCSFixer.loadSettings()', () => {
 
 	describe('Config file paths', () => {
 		it('loads config file paths with default fallback', () => {
-			expect(phpCSFixer.config).toBe('.php-cs-fixer.php;.php-cs-fixer.dist.php;.php_cs;.php_cs.dist')
+			const config = loadConfig()
+			expect(config.config).toBe('.php-cs-fixer.php;.php-cs-fixer.dist.php;.php_cs;.php_cs.dist')
 		})
 
 		it('loads custom config path', () => {
@@ -313,8 +323,8 @@ describe('PHPCSFixer.loadSettings()', () => {
 				return configMap[key] ?? defaultValue
 			})
 
-			const customFixer = new PHPCSFixer()
-			expect(customFixer.config).toBe('.custom-fixer.php')
+			const config = loadConfig()
+			expect(config.config).toBe('.custom-fixer.php')
 		})
 	})
 
@@ -340,9 +350,9 @@ describe('PHPCSFixer.loadSettings()', () => {
 				return configMap[key] ?? defaultValue
 			})
 
-			const exprFixer = new PHPCSFixer()
-			expect(exprFixer.executablePath).not.toContain('${extensionPath}')
-			expect(exprFixer.executablePath).toContain('php-cs-fixer')
+			const config = loadConfig()
+			expect(config.executablePath).not.toContain('${extensionPath}')
+			expect(config.executablePath).toContain('php-cs-fixer')
 		})
 	})
 
@@ -392,8 +402,8 @@ describe('PHPCSFixer.loadSettings()', () => {
 				return mockConfig
 			})
 
-			const pharFixer = new PHPCSFixer()
-			expect(pharFixer.pharPath).toContain('php-cs-fixer.phar')
+			const config = loadConfig()
+			expect(config.pharPath).toContain('php-cs-fixer.phar')
 		})
 
 		it('uses php from php.validate.executablePath for phar files', () => {
@@ -441,8 +451,8 @@ describe('PHPCSFixer.loadSettings()', () => {
 				return mockConfig
 			})
 
-			const pharFixer = new PHPCSFixer()
-			expect(pharFixer.executablePath).toBe('/usr/bin/php')
+			const config = loadConfig()
+			expect(config.executablePath).toBe('/usr/bin/php')
 		})
 	})
 
@@ -472,12 +482,13 @@ describe('PHPCSFixer.loadSettings()', () => {
 				return mockConfig
 			})
 
-			const editorFixer = new PHPCSFixer()
-			expect(editorFixer.editorFormatOnSave).toBe(true)
+			const config = loadConfig()
+			expect(config.editorFormatOnSave).toBe(true)
 		})
 
 		it('defaults formatOnSave to false', () => {
-			expect(phpCSFixer.editorFormatOnSave).toBe(false)
+			const config = loadConfig()
+			expect(config.editorFormatOnSave).toBe(false)
 		})
 	})
 
@@ -503,8 +514,8 @@ describe('PHPCSFixer.loadSettings()', () => {
 				return configMap[key] ?? defaultValue
 			})
 
-			const excludeFixer = new PHPCSFixer()
-			expect(excludeFixer.exclude).toEqual(['vendor/**', 'node_modules/**', 'tests/**'])
+			const config = loadConfig()
+			expect(config.exclude).toEqual(['vendor/**', 'node_modules/**', 'tests/**'])
 		})
 	})
 })

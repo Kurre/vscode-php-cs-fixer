@@ -2,13 +2,15 @@ import type { SpawnOptionsWithoutStdio } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { Uri, type Uri as VscodeUri } from 'vscode'
+import { Uri, type Uri as VscodeUri, type TextDocument, type TextEdit, type Range, Position, Range as VSRange, TextEdit as VSTextEdit, commands, window, workspace } from 'vscode'
+import anymatch from 'anymatch'
 import { ProcessError } from './shared/processError'
 import type { ConfigSchema } from './config'
 import { getActiveWorkspaceFolder, resolveVscodeExpressions } from './config'
 import { clearOutput, hideStatusBar, output, statusInfo } from './output'
 import { runAsync } from './runAsync'
 import { quoteArgForPlatform, buildSpawnOptions } from './spawnHelpers'
+import { beautify } from './beautifyHtml'
 
 const TEMP_DIR = os.tmpdir()
 const HOME_DIR = os.homedir()
@@ -16,7 +18,15 @@ const HOME_DIR = os.homedir()
 export class FormattingService {
 	private isRunning = false
 
-	constructor(private readonly config: ConfigSchema) {}
+	constructor(private config: ConfigSchema) {}
+
+	updateConfig(newConfig: ConfigSchema) {
+		this.config = newConfig
+	}
+
+	isFormatting(): boolean {
+		return this.isRunning
+	}
 
 	getRealExecutablePath(uri: VscodeUri): string | undefined {
 		return resolveVscodeExpressions(this.config.executablePath, { uri })
@@ -194,5 +204,146 @@ export class FormattingService {
 
 	getIsRunning() {
 		return this.isRunning
+	}
+
+	isExcluded(document: TextDocument): boolean {
+		if (this.config.exclude.length > 0 && document.uri.scheme === 'file' && !document.isUntitled) {
+			return anymatch(this.config.exclude, document.uri.path)
+		}
+		return false
+	}
+
+	async formattingProvider(
+		document: TextDocument,
+		options?: any,
+	): Promise<TextEdit[]> {
+		if (this.isExcluded(document)) {
+			return Promise.resolve([])
+		}
+
+		return new Promise((resolve, reject) => {
+			const originalText = document.getText()
+			const lastLine = document.lineAt(document.lineCount - 1)
+			const range = new VSRange(new Position(0, 0), lastLine.range.end)
+
+			const htmlFormatConfig = workspace.getConfiguration('html').get('format')
+			const htmlOptions = { ...options, ...htmlFormatConfig }
+
+			const originalText2 = this.config.formatHtml ? beautify(originalText, htmlOptions) : originalText
+
+			const tmpDirRef = { value: this.config.tmpDir }
+			this.format(originalText2, document.uri, () => this.errorTip(), {
+				isDiff: false,
+				isPartial: false,
+				tmpDirRef,
+			})
+				.then((text) => {
+					if (text && text !== originalText) {
+						resolve([new VSTextEdit(range, text)])
+					} else {
+						resolve([])
+					}
+				})
+				.catch((err) => {
+					console.log(err)
+					reject(err)
+				})
+		})
+	}
+
+	async rangeFormattingProvider(document: TextDocument, range: Range): Promise<TextEdit[]> {
+		if (this.isExcluded(document)) {
+			return Promise.resolve([])
+		}
+
+		return new Promise((resolve, reject) => {
+			let originalText = document.getText(range)
+			if (originalText.replace(/\s+/g, '').length === 0) {
+				reject()
+				return
+			}
+			let addPHPTag = false
+			if (originalText.search(/^\s*<\?php/i) === -1) {
+				originalText = `<?php\n${originalText}`
+				addPHPTag = true
+			}
+
+			const tmpDirRef = { value: this.config.tmpDir }
+			this.format(originalText, document.uri, () => this.errorTip(), {
+				isDiff: false,
+				isPartial: false,
+				tmpDirRef,
+			})
+				.then((text) => {
+					let fixedText = text
+					if (addPHPTag) {
+						fixedText = fixedText.replace(/^<\?php\r?\n/, '')
+					}
+					if (fixedText && fixedText !== originalText) {
+						resolve([new VSTextEdit(range, fixedText)])
+					} else {
+						resolve([])
+					}
+				})
+				.catch((err) => {
+					console.log(err)
+					reject()
+				})
+		})
+	}
+
+	fix(uri: VscodeUri) {
+		clearOutput()
+		statusInfo('fixing')
+
+		const args = this.getArgs(uri)
+		const opts = buildSpawnOptions(uri, this.config.ignorePHPVersion)
+
+		const realExecutablePath = this.getRealExecutablePath(uri)
+		if (!realExecutablePath) {
+			this.errorTip()
+			return
+		}
+
+		runAsync(realExecutablePath, args, opts, (data) => {
+			output(data.toString())
+		})
+			.then(() => {
+				hideStatusBar()
+			})
+			.catch((err: any) => {
+				statusInfo('failed')
+				if (err.code === 'ENOENT') {
+					this.errorTip()
+				}
+			})
+	}
+
+	diff(uri: VscodeUri) {
+		const tmpDirRef = { value: this.config.tmpDir }
+		this.format(fs.readFileSync(uri.fsPath), uri, () => this.errorTip(), {
+			isDiff: true,
+			isPartial: false,
+			tmpDirRef,
+		})
+			.then((tempFilePath) => {
+				commands.executeCommand('vscode.diff', uri, Uri.file(tempFilePath), 'diff')
+			})
+			.catch((err) => {
+				console.error(err)
+			})
+	}
+
+	private errorTip() {
+		window
+			.showErrorMessage(
+				// biome-ignore lint/suspicious/noTemplateCurlyInString: VSC expression
+				'PHP CS Fixer: executablePath not found. Try setting `"php-cs-fixer.executablePath": "${extensionPath}/php-cs-fixer.phar"` and try again.',
+			)
+			.then((selection) => {
+				if (selection) {
+					commands.executeCommand('workbench.action.openSettings', 'php-cs-fixer.executablePath')
+				}
+			})
 	}
 }
