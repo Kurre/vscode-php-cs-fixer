@@ -45,10 +45,7 @@ export function resolveVscodeExpressions(input: string, context: ResolveContext 
 		}
 	}
 
-	normalizedInput = normalizedInput
-		// biome-ignore lint/suspicious/noTemplateCurlyInString: VSC expression
-		.replace('${extensionPath}', __dirname)
-		.replace(/^~\//, `${os.homedir()}/`)
+	normalizedInput = normalizedInput.replace('${extensionPath}', __dirname).replace(/^~\//, `${os.homedir()}/`)
 
 	return path.normalize(normalizedInput)
 }

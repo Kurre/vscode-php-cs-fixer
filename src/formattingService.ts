@@ -1,16 +1,28 @@
-import type { SpawnOptionsWithoutStdio } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { Uri, type Uri as VscodeUri, type TextDocument, type TextEdit, type Range, Position, Range as VSRange, TextEdit as VSTextEdit, commands, window, workspace } from 'vscode'
 import anymatch from 'anymatch'
-import { ProcessError } from './shared/processError'
+import {
+	commands,
+	Position,
+	type Range,
+	type TextDocument,
+	type TextEdit,
+	Uri,
+	Range as VSRange,
+	TextEdit as VSTextEdit,
+	type Uri as VscodeUri,
+	window,
+	workspace,
+} from 'vscode'
+
+import { type BeautifyOptions, beautify } from './beautifyHtml'
 import type { ConfigSchema } from './config'
 import { getActiveWorkspaceFolder, resolveVscodeExpressions } from './config'
 import { clearOutput, hideStatusBar, output, statusInfo } from './output'
 import { runAsync } from './runAsync'
-import { quoteArgForPlatform, buildSpawnOptions } from './spawnHelpers'
-import { beautify } from './beautifyHtml'
+import { ProcessError } from './shared/processError'
+import { buildSpawnOptions, quoteArgForPlatform } from './spawnHelpers'
 
 const TEMP_DIR = os.tmpdir()
 const HOME_DIR = os.homedir()
@@ -164,8 +176,12 @@ export class FormattingService {
 			}
 
 			return text.toString()
-		} catch (err: any) {
-			output(err.stderr || JSON.stringify(err, null, 2))
+		} catch (err: unknown) {
+			const errorMessage =
+				typeof err === 'object' && err !== null && 'stderr' in err && typeof err.stderr === 'string'
+					? err.stderr
+					: JSON.stringify(err, null, 2)
+			output(errorMessage)
 			if (!isPartial) statusInfo('failed')
 
 			if (err instanceof ProcessError && err.exitCode) {
@@ -183,7 +199,7 @@ export class FormattingService {
 					const msg = ERROR_MESSAGES[err.exitCode as keyof typeof ERROR_MESSAGES]
 					statusInfo(msg)
 				}
-			} else if ('code' in err && err.code === 'ENOENT') {
+			} else if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
 				errorTip()
 			}
 
@@ -213,10 +229,7 @@ export class FormattingService {
 		return false
 	}
 
-	async formattingProvider(
-		document: TextDocument,
-		options?: any,
-	): Promise<TextEdit[]> {
+	async formattingProvider(document: TextDocument, options?: Partial<BeautifyOptions>): Promise<TextEdit[]> {
 		if (this.isExcluded(document)) {
 			return Promise.resolve([])
 		}
@@ -227,7 +240,11 @@ export class FormattingService {
 			const range = new VSRange(new Position(0, 0), lastLine.range.end)
 
 			const htmlFormatConfig = workspace.getConfiguration('html').get('format')
-			const htmlOptions = { ...options, ...htmlFormatConfig }
+			if (typeof htmlFormatConfig !== 'object' || htmlFormatConfig === null) {
+				reject(new Error('Invalid HTML format configuration'))
+				return
+			}
+			const htmlOptions = { ...options, ...htmlFormatConfig } as BeautifyOptions
 
 			const originalText2 = this.config.formatHtml ? beautify(originalText, htmlOptions) : originalText
 
@@ -311,9 +328,9 @@ export class FormattingService {
 			.then(() => {
 				hideStatusBar()
 			})
-			.catch((err: any) => {
+			.catch((err: unknown) => {
 				statusInfo('failed')
-				if (err.code === 'ENOENT') {
+				if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
 					this.errorTip()
 				}
 			})
@@ -337,7 +354,6 @@ export class FormattingService {
 	private errorTip() {
 		window
 			.showErrorMessage(
-				// biome-ignore lint/suspicious/noTemplateCurlyInString: VSC expression
 				'PHP CS Fixer: executablePath not found. Try setting `"php-cs-fixer.executablePath": "${extensionPath}/php-cs-fixer.phar"` and try again.',
 			)
 			.then((selection) => {

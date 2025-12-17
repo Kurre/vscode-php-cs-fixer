@@ -96,9 +96,9 @@ vi.mock('./runAsync')
 import * as fs from 'node:fs'
 import * as vscode from 'vscode'
 
-import { runAsync } from './runAsync'
-import { FormattingService } from './formattingService'
 import { loadConfig } from './config'
+import { FormattingService } from './formattingService'
+import { runAsync } from './runAsync'
 
 vi.mocked(runAsync).mockResolvedValue({ stdout: JSON.stringify({ files: [{ name: 'test.php' }] }), stderr: '' })
 
@@ -270,8 +270,8 @@ describe('FormattingService Methods', () => {
 			})
 
 			const callArgs = vi.mocked(runAsync).mock.calls[0]
-			expect(callArgs[2]).toBeDefined() // opts argument
-			expect(callArgs[2].cwd).toBe('/workspace/src')
+			expect(callArgs?.[2]).toBeDefined() // opts argument
+			expect(callArgs?.[2].cwd).toBe('/workspace/src')
 		})
 
 		it('should handle partial formatting (temp file mode)', async () => {
@@ -365,7 +365,7 @@ describe('FormattingService Methods', () => {
 
 			expect(result).toHaveLength(1)
 			expect(result[0]).toBeDefined()
-			expect(result[0].newText).toBe(formattedText)
+			expect(result[0]?.newText).toBe(formattedText)
 		})
 
 		it('should use custom formatting options', async () => {
@@ -458,7 +458,7 @@ describe('FormattingService Methods', () => {
 			const result = await formatting.rangeFormattingProvider(document as any, range as any)
 
 			expect(result).toHaveLength(1)
-			expect(result[0].newText).toBe('formatted portion')
+			expect(result[0]?.newText).toBe('formatted portion')
 		})
 
 		it('should handle multi-line range selections', async () => {

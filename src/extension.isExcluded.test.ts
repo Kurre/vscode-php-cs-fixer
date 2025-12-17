@@ -91,8 +91,8 @@ vi.mock('./runAsync')
 
 import * as vscode from 'vscode'
 
-import { FormattingService } from './formattingService'
 import { loadConfig } from './config'
+import { FormattingService } from './formattingService'
 
 describe('FormattingService.isExcluded()', () => {
 	let mockConfig: any

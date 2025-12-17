@@ -1,11 +1,9 @@
-import { commands, Position, Range, type TextDocumentChangeEvent, window, type Uri } from 'vscode'
+import { commands, Range, type TextDocumentChangeEvent, window } from 'vscode'
+
 import type { FormattingService } from './formattingService'
 
 export class AutoFixService {
-	constructor(
-		private readonly formatting: FormattingService,
-		private readonly documentUri: () => Uri,
-	) {}
+	constructor(private readonly formatting: FormattingService) {}
 
 	async doAutoFixByBracket(event: TextDocumentChangeEvent) {
 		if (event.contentChanges.length === 0) return
@@ -73,7 +71,7 @@ export class AutoFixService {
 
 		try {
 			const tmpDirRef = { value: '' }
-			const text = await this.formatting.format(originalText, this.documentUri(), () => {}, {
+			const text = await this.formatting.format(originalText, event.document.uri, () => {}, {
 				isPartial: true,
 				isDiff: false,
 				tmpDirRef,
@@ -122,7 +120,7 @@ export class AutoFixService {
 
 		try {
 			const tmpDirRef = { value: '' }
-			const text = await this.formatting.format(originalText, this.documentUri(), () => {}, {
+			const text = await this.formatting.format(originalText, event.document.uri, () => {}, {
 				isPartial: true,
 				isDiff: false,
 				tmpDirRef,

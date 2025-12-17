@@ -1,30 +1,22 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import {
-	commands,
-	type ExtensionContext,
-	type TextDocument,
-	type Uri,
-	window,
-	workspace,
-	languages,
-} from 'vscode'
+import { commands, type ExtensionContext, languages, type Uri, window, workspace } from 'vscode'
 
 import { AutoFixService } from './autoFixService'
-import { loadConfig, type ConfigSchema } from './config'
+import { type ConfigSchema, loadConfig } from './config'
 import { downloadPhpCsFixerFile } from './download-phar'
 import { FormattingService } from './formattingService'
 import { disposeOutput, showOutput } from './output'
 
-// Re-export for backward compatibility
-export { loadConfig, resolveVscodeExpressions, getActiveWorkspaceFolder, type ConfigSchema } from './config'
-export { FormattingService } from './formattingService'
 export { AutoFixService } from './autoFixService'
+// Re-export for backward compatibility
+export { type ConfigSchema, getActiveWorkspaceFolder, loadConfig, resolveVscodeExpressions } from './config'
+export { FormattingService } from './formattingService'
 
 /**
  * Checks for php-cs-fixer.phar updates periodically
  */
-function checkUpdate(config: ConfigSchema) {
+function checkUpdate(_config: ConfigSchema) {
 	setTimeout(() => {
 		const vscConfig = workspace.getConfiguration('php-cs-fixer')
 		const executablePath = vscConfig.get<string>('executablePath', 'php-cs-fixer')
@@ -33,7 +25,7 @@ function checkUpdate(config: ConfigSchema) {
 
 		const shouldDownload =
 			lastDownloadTimestamp !== 0 &&
-			// biome-ignore lint/suspicious/noTemplateCurlyInString: VSC expression
+			//
 			executablePath === '${extensionPath}/php-cs-fixer.phar' &&
 			lastDownloadTimestamp + oneWeekInMilliseconds < Date.now()
 
