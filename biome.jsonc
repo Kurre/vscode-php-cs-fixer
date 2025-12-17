@@ -25,7 +25,7 @@
 		}
 	},
 	"linter": {
-		"includes": ["**", "!node_modules"],
+		"includes": ["**", "!node_modules", "!coverage"],
 		"rules": {
 			"recommended": true,
 			"style": {
@@ -45,6 +45,9 @@
 					"level": "warn",
 					"fix": "none"
 				}
+			},
+			"suspicious": {
+				"noTemplateCurlyInString": "off"
 			}
 		}
 	},
@@ -81,6 +84,16 @@
 								"ignoreRestSiblings": true
 							}
 						}
+					}
+				}
+			}
+		},
+		{
+			"includes": ["src/test-utils/**/*.ts"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noExplicitAny": "off"
 					}
 				}
 			}
